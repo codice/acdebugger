@@ -20,7 +20,6 @@ import com.sun.jdi.request.BreakpointRequest;
 import com.sun.jdi.request.EventRequest;
 import com.sun.jdi.request.EventRequestManager;
 import java.io.IOException;
-import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -106,7 +105,10 @@ public class PermissionDebugger {
             new BreakpointProcessor(missingPerms)
                 .processBreakpoint(contextField, (BreakpointEvent) evt);
 
-            run = false;
+            // TODO: 12/20/17 Remove when full loop processing is restored
+            // run = false;
+            System.out.println(missingPerms);
+            missingPerms.clear();
           }
         } finally {
           evtSet.resume();
@@ -114,15 +116,15 @@ public class PermissionDebugger {
       }
     }
 
-    System.out.println(missingPerms);
-//    printPerms(missingPerms);
+    //    System.out.println(missingPerms);
+    //    printPerms(missingPerms);
   }
 
-//  private void printPerms(
-//      SortedSetMultimap<String, String> missingPerms) {
-//    Map<String, Collection<String>> stringCollectionMap = missingPerms.asMap();
-//    for (String key : stringCollectionMap.keySet()) {
-//      sout
-//    }
-//  }
+  //  private void printPerms(
+  //      SortedSetMultimap<String, String> missingPerms) {
+  //    Map<String, Collection<String>> stringCollectionMap = missingPerms.asMap();
+  //    for (String key : stringCollectionMap.keySet()) {
+  //      sout
+  //    }
+  //  }
 }

@@ -26,6 +26,9 @@ public class BreakpointProcessor {
   private static final ImmutableList<String> BUNDLE_PROTDOMAIN_WALKER =
       ImmutableList.of("bundle", "module", "revisions", "revisions");
 
+  private static final ImmutableList<String> BLUEPRINT_PERM_WALKER =
+      ImmutableList.of("bundleContext", "bundle", "module", "revisions", "revisions");
+
   private final SortedSetMultimap<String, String> missingPerms;
 
   public BreakpointProcessor(SortedSetMultimap<String, String> missingPerms) {
@@ -43,29 +46,17 @@ public class BreakpointProcessor {
 
     for (int i = 0; i < size; i++) {
       ObjectReference context = (ObjectReference) contextArray.getValues().get(i);
-      if (context != null && (hasBundlePerms(context) || hasBundleProtectionDomain(context))) {
+      if (context != null
+          && (hasBundlePerms(context)
+              || hasBundleProtectionDomain(context)
+              || hasBlueprintProtectionDomain(context))) {
         missingPerms.put(getBundleLocation(context), getPermissionString(threadRef));
       }
     }
-  }
 
-  private boolean hasBundlePerms(ObjectReference context) {
-    String permissionType =
-        getValue(
-            context,
-            ImmutableList.of("permissions"),
-            currRef -> (currRef != null) ? currRef.type().name() : "");
-
-    return permissionType.endsWith("BundlePermissions");
-  }
-
-  private boolean hasBundleProtectionDomain(ObjectReference context) {
-    return context
-        .referenceType()
-        .allFields()
-        .stream()
-        .map(TypeComponent::name)
-        .anyMatch("bundle"::equals);
+    if (missingPerms.isEmpty()) {
+      System.out.println("this is wrong");
+    }
   }
 
   private String getPermissionString(ThreadReference threadRef) throws Exception {
@@ -77,7 +68,7 @@ public class BreakpointProcessor {
     StringReference name =
         (StringReference) permission.getValue(permission.referenceType().fieldByName("name"));
     sb.append(name);
-    sb.append(" ");
+    sb.append(", \"");
 
     // Special case for file permissions for now to manually extract actions values
     if (obj.name().equals("java.io.FilePermission")) {
@@ -90,6 +81,7 @@ public class BreakpointProcessor {
       sb.append("ACTIONS UNKNOWN");
     }
 
+    sb.append("\"");
     return sb.toString();
   }
 
@@ -120,8 +112,14 @@ public class BreakpointProcessor {
   }
 
   private String getBundleLocation(ObjectReference permissions) {
-    List<String> walker =
-        hasBundlePerms(permissions) ? BUNDLE_PERM_WALKER : BUNDLE_PROTDOMAIN_WALKER;
+    List<String> walker;
+    if (hasBundlePerms(permissions)) {
+      walker = BUNDLE_PERM_WALKER;
+    } else if (hasBlueprintProtectionDomain(permissions)) {
+      walker = BLUEPRINT_PERM_WALKER;
+    } else {
+      walker = BUNDLE_PROTDOMAIN_WALKER;
+    }
 
     ObjectReference revList = getReference(permissions, walker);
     ArrayReference revArray =
@@ -133,7 +131,35 @@ public class BreakpointProcessor {
         currRef -> ((StringReference) currRef).value());
   }
 
-  private ObjectReference getReference(ObjectReference input, List<String> fieldPath) {
+  private static boolean hasBundlePerms(ObjectReference context) {
+    String permissionType =
+        getValue(
+            context,
+            ImmutableList.of("permissions"),
+            currRef -> (currRef != null) ? currRef.type().name() : "");
+
+    return permissionType.endsWith("BundlePermissions");
+  }
+
+  private static boolean hasBlueprintProtectionDomain(ObjectReference context) {
+    return context
+        .referenceType()
+        .allFields()
+        .stream()
+        .map(TypeComponent::name)
+        .anyMatch("bundleContext"::equals);
+  }
+
+  private static boolean hasBundleProtectionDomain(ObjectReference context) {
+    return context
+        .referenceType()
+        .allFields()
+        .stream()
+        .map(TypeComponent::name)
+        .anyMatch("bundle"::equals);
+  }
+
+  private static ObjectReference getReference(ObjectReference input, List<String> fieldPath) {
     ObjectReference currRef = input;
     for (String fieldName : fieldPath) {
       currRef = (ObjectReference) currRef.getValue(currRef.referenceType().fieldByName(fieldName));
@@ -141,7 +167,7 @@ public class BreakpointProcessor {
     return currRef;
   }
 
-  private <T> T getValue(
+  private static <T> T getValue(
       ObjectReference input, List<String> fieldPath, Function<ObjectReference, T> valueFunc) {
     ObjectReference currRef = getReference(input, fieldPath);
     return valueFunc.apply(currRef);

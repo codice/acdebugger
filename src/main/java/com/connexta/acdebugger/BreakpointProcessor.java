@@ -16,6 +16,7 @@ import java.io.FilePermission;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.util.List;
+import java.util.PropertyPermission;
 import java.util.function.Function;
 
 public class BreakpointProcessor {
@@ -71,14 +72,20 @@ public class BreakpointProcessor {
     sb.append(", \"");
 
     // Special case for file permissions for now to manually extract actions values
-    if (obj.name().equals("java.io.FilePermission")) {
-      extractFilePermActions(permission, sb);
-    } else {
-      // TODO RAP 18 Dec 17: Either invoke getActions() to get value or duplicate the logic of
-      // ALL permissions that are known a priori to generate their actions values.
-      // E.g. FilePermission maintains an internal bitmask of permissions that is processed
-      // on demand to get the actions string
-      sb.append("ACTIONS UNKNOWN");
+    switch (obj.name()) {
+      case "java.io.FilePermission":
+        extractFilePermActions(permission, sb);
+        break;
+      case "java.util.PropertyPermission":
+        extractPropertyPermActions(permission, sb);
+        break;
+      default:
+        // TODO RAP 18 Dec 17: Either invoke getActions() to get value or duplicate the logic of
+        // ALL permissions that are known a priori to generate their actions values.
+        // E.g. FilePermission maintains an internal bitmask of permissions that is processed
+        // on demand to get the actions string
+        sb.append("ACTIONS UNKNOWN");
+        break;
     }
 
     sb.append("\"");
@@ -86,18 +93,28 @@ public class BreakpointProcessor {
   }
 
   private void extractFilePermActions(ObjectReference permission, StringBuilder sb) {
+    extractMaskPermActionType(permission, FilePermission.class, sb);
+  }
+
+  private void extractPropertyPermActions(ObjectReference permission, StringBuilder sb) {
+    extractMaskPermActionType(permission, PropertyPermission.class, sb);
+  }
+
+  private void extractMaskPermActionType(
+      ObjectReference permission, Class permClass, StringBuilder sb) {
     IntegerValue value =
         (IntegerValue) permission.getValue(permission.referenceType().fieldByName("mask"));
     Integer mask = value.value();
 
     try {
-      Method meth = FilePermission.class.getDeclaredMethod("getActions", int.class);
+      Method meth = permClass.getDeclaredMethod("getActions", int.class);
       meth.setAccessible(true);
       String actions = (String) meth.invoke(null, mask);
 
       sb.append(actions);
     } catch (NoSuchMethodException | IllegalAccessException | InvocationTargetException e) {
-      sb.append("FILEPERMS ACTIONS UNKNOWN");
+      sb.append("ACTIONS UNKNOWN / ");
+      sb.append(permClass);
     }
   }
 

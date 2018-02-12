@@ -42,16 +42,14 @@ public class BreakpointProcessor {
 
   private void checkConditions(ThreadReference threadRef, Field contextField) throws Exception {
     ArrayReference contextArray = getContextArray(contextField, threadRef);
-    int size = contextArray.getValues().size();
 
-    for (int i = 0; i < size; i++) {
-      ObjectReference context = (ObjectReference) contextArray.getValues().get(i);
-      if (context != null
-          && (hasBundlePerms(context)
-              || hasBundleProtectionDomain(context)
-              || hasBlueprintProtectionDomain(context))) {
-        missingPerms.put(getBundleLocation(context), getPermissionString(threadRef));
-      }
+    int failedIdx = ReadDebugIndex.getIndex(threadRef);
+    ObjectReference context = (ObjectReference) contextArray.getValues().get(failedIdx);
+    if (context != null
+        && (hasBundlePerms(context)
+            || hasBundleProtectionDomain(context)
+            || hasBlueprintProtectionDomain(context))) {
+      missingPerms.put(getBundleLocation(context), getPermissionString(threadRef));
     }
 
     if (missingPerms.isEmpty()) {

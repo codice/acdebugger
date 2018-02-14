@@ -6,6 +6,7 @@ import com.sun.jdi.ArrayReference;
 import com.sun.jdi.ClassType;
 import com.sun.jdi.Field;
 import com.sun.jdi.IncompatibleThreadStateException;
+import com.sun.jdi.IntegerValue;
 import com.sun.jdi.Method;
 import com.sun.jdi.ObjectReference;
 import com.sun.jdi.StringReference;
@@ -14,8 +15,11 @@ import com.sun.jdi.TypeComponent;
 import com.sun.jdi.Value;
 import com.sun.jdi.event.BreakpointEvent;
 import com.sun.tools.jdi.StringReferenceImpl;
+import java.io.FilePermission;
+import java.lang.reflect.InvocationTargetException;
 import java.util.Collections;
 import java.util.List;
+import java.util.PropertyPermission;
 import java.util.function.Function;
 
 public class BreakpointProcessor {
@@ -68,11 +72,60 @@ public class BreakpointProcessor {
     sb.append(name);
     sb.append(", \"");
 
-    Method getActions = obj.concreteMethodByName("getActions", "()Ljava/lang/String;");
-    Value value = permission.invokeMethod(threadRef, getActions, Collections.emptyList(), 0);
-    sb.append(((StringReferenceImpl) value).value());
+    //    sb.append(getPermissionActionsAll(threadRef, permission, obj));
+    sb.append(getPermissionActions(permission, obj));
     sb.append("\"");
     return sb.toString();
+  }
+
+  private String getPermissionActions(ObjectReference permission, ClassType obj) {
+    // Special case for file permissions for now to manually extract actions values
+    switch (obj.name()) {
+      case "java.io.FilePermission":
+        return extractFilePermActions(permission);
+      case "java.util.PropertyPermission":
+        return extractPropertyPermActions(permission);
+      default:
+        return "ACTIONS UNKNOWN";
+    }
+  }
+
+  /**
+   * This method is apparently deadlocking the remote VM and will temporarily not be used.
+   *
+   * @param threadRef
+   * @param permission
+   * @param obj
+   * @return
+   * @throws Exception
+   */
+  private String getPermissionActionsAll(
+      ThreadReference threadRef, ObjectReference permission, ClassType obj) throws Exception {
+    Method getActions = obj.concreteMethodByName("getActions", "()Ljava/lang/String;");
+    Value value = permission.invokeMethod(threadRef, getActions, Collections.emptyList(), 0);
+    return ((StringReferenceImpl) value).value();
+  }
+
+  private String extractFilePermActions(ObjectReference permission) {
+    return extractMaskPermActionType(permission, FilePermission.class);
+  }
+
+  private String extractPropertyPermActions(ObjectReference permission) {
+    return extractMaskPermActionType(permission, PropertyPermission.class);
+  }
+
+  private String extractMaskPermActionType(ObjectReference permission, Class permClass) {
+    IntegerValue value =
+        (IntegerValue) permission.getValue(permission.referenceType().fieldByName("mask"));
+    Integer mask = value.value();
+
+    try {
+      java.lang.reflect.Method meth = permClass.getDeclaredMethod("getActions", int.class);
+      meth.setAccessible(true);
+      return (String) meth.invoke(null, mask);
+    } catch (NoSuchMethodException | IllegalAccessException | InvocationTargetException e) {
+      return "ACTIONS UNKNOWN / " + permClass;
+    }
   }
 
   private ObjectReference getArgumentReference(ThreadReference threadRef)

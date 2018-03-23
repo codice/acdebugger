@@ -1,4 +1,4 @@
-package com.connexta.acdebugger;
+package com.codice.acdebugger;
 
 import com.sun.jdi.IncompatibleThreadStateException;
 import com.sun.jdi.IntegerValue;

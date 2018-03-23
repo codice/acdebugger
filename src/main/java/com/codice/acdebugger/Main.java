@@ -1,4 +1,4 @@
-package com.connexta.acdebugger;
+package com.codice.acdebugger;
 
 public class Main {
   private static final int THROWS_LINE = 472;

@@ -1,5 +1,10 @@
 package com.codice.acdebugger;
 
+import java.io.IOException;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+
 import com.google.common.collect.SortedSetMultimap;
 import com.google.common.collect.TreeMultimap;
 import com.sun.jdi.Bootstrap;
@@ -19,26 +24,27 @@ import com.sun.jdi.event.EventSet;
 import com.sun.jdi.request.BreakpointRequest;
 import com.sun.jdi.request.EventRequest;
 import com.sun.jdi.request.EventRequestManager;
-import java.io.IOException;
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
 
 public class PermissionDebugger {
 
   private static final String PORT_KEY = "port";
 
+  private static final String HOST_KEY = "hostname";
+
   private final String transport;
 
   private final String port;
+
+  private final String host;
 
   private VirtualMachine vm;
 
   private SortedSetMultimap<String, String> missingPerms = TreeMultimap.create();
 
-  public PermissionDebugger(String transport, String port) {
+  public PermissionDebugger(String transport, String host, String port) {
     this.transport = transport;
     this.port = port;
+    this.host = host;
   }
 
   public PermissionDebugger attach() throws IOException, IllegalConnectorArgumentsException {
@@ -56,7 +62,10 @@ public class PermissionDebugger {
     Map<String, Argument> map = connector.defaultArguments();
     Argument portArg = map.get(PORT_KEY);
     portArg.setValue(port);
+    Argument hostArg = map.get(HOST_KEY);
+    hostArg.setValue(host);
     map.put(PORT_KEY, portArg);
+    map.put(HOST_KEY, hostArg);
     vm = connector.attach(map);
 
     return this;

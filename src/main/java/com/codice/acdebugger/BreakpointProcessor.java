@@ -1,12 +1,5 @@
 package com.codice.acdebugger;
 
-import java.io.FilePermission;
-import java.lang.reflect.InvocationTargetException;
-import java.util.Collections;
-import java.util.List;
-import java.util.PropertyPermission;
-import java.util.function.Function;
-
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.SortedSetMultimap;
 import com.sun.jdi.ArrayReference;
@@ -22,6 +15,12 @@ import com.sun.jdi.TypeComponent;
 import com.sun.jdi.Value;
 import com.sun.jdi.event.BreakpointEvent;
 import com.sun.tools.jdi.StringReferenceImpl;
+import java.io.FilePermission;
+import java.lang.reflect.InvocationTargetException;
+import java.util.Collections;
+import java.util.List;
+import java.util.PropertyPermission;
+import java.util.function.Function;
 
 public class BreakpointProcessor {
 

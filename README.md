@@ -10,6 +10,9 @@ for a single permission failure. Additionally, it does not currently
 get the permission actions requested, only printing out the bundle context,
 permission type, and requested resource(s).
 
+The maven build can be used to produce an executable jar. The jar can
+be run by doing: `java -jar .\access-control-debugger-1.0-SNAPSHOT-jar-with-dependencies.jar -host <hostname or IP> -port <port number> -wait <number of minutes to attempt to connect or empty for default>`
+
 ### Future iterations
 Future implementations will
 
@@ -18,5 +21,4 @@ Future implementations will
 method in order to continue processing
 * Clean and refactor code, extracting a utility library
 * Provide a Kotlin implementation
-* Provide a runnable jar
 

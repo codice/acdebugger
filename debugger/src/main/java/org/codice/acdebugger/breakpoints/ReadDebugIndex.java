@@ -1,4 +1,17 @@
-package com.codice.acdebugger;
+/**
+ * Copyright (c) Codice Foundation
+ *
+ * <p>This is free software: you can redistribute it and/or modify it under the terms of the GNU
+ * Lesser General Public License as published by the Free Software Foundation, either version 3 of
+ * the License, or any later version.
+ *
+ * <p>This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY;
+ * without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+ * GNU Lesser General Public License for more details. A copy of the GNU Lesser General Public
+ * License is distributed along with this program and can be found at
+ * <http://www.gnu.org/licenses/lgpl.html>.
+ */
+package org.codice.acdebugger.breakpoints;
 
 import com.sun.jdi.IncompatibleThreadStateException;
 import com.sun.jdi.IntegerValue;
@@ -12,8 +25,15 @@ import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 
-public class ReadDebugIndex {
-
+/**
+ * Class used to read the current index in the access controller were the security exception is
+ * being thrown.
+ */
+@SuppressWarnings({
+  "squid:S1191", /* Using the Java debugger API */
+  "squid:S1148" /* this is a console application */
+})
+class ReadDebugIndex {
   private static final byte INT_BYTE_SIG = (byte) 73;
   private static Class<?> slotInfoClass;
   private static Constructor<?> slotCtor;
@@ -46,7 +66,7 @@ public class ReadDebugIndex {
     throw new NoSuchMethodException(aClass.getName() + "." + methodName);
   }
 
-  private static <T> T getValue(Class clazz, Object instance, String fieldName, Class<T> fieldType)
+  private static <T> T getValue(Class clazz, Object instance, String fieldName)
       throws NoSuchFieldException, IllegalAccessException {
     Field declaredField = clazz.getDeclaredField(fieldName);
     declaredField.setAccessible(true);
@@ -62,13 +82,13 @@ public class ReadDebugIndex {
     return slotArray;
   }
 
+  @SuppressWarnings("squid:CommentedOutCodeLine" /* alternative way */)
   static int getIndex(ThreadReference threadRef)
       throws IncompatibleThreadStateException, NoSuchFieldException, NoSuchMethodException,
-          InvocationTargetException, IllegalAccessException, ClassNotFoundException,
-          InstantiationException {
+          InvocationTargetException, IllegalAccessException, InstantiationException {
     StackFrame frame = threadRef.frame(0);
     VirtualMachine vm = frame.virtualMachine();
-    long frameId = getValue(frame.getClass(), frame, "id", long.class);
+    long frameId = getValue(frame.getClass(), frame, "id");
 
     Method state = vm.getClass().getDeclaredMethod("state");
     state.setAccessible(true);
@@ -82,7 +102,7 @@ public class ReadDebugIndex {
       }
 
       final Object reply = waitForReply.invoke(null, vm, ps);
-      Value[] values = getValue(reply.getClass(), reply, "values", Value[].class);
+      Value[] values = getValue(reply.getClass(), reply, "values");
 
       //      Field replyField = reply.getClass().getDeclaredField("values");
       //      replyField.setAccessible(true);
@@ -94,5 +114,9 @@ public class ReadDebugIndex {
     }
 
     return 0;
+  }
+
+  private ReadDebugIndex() {
+    throw new UnsupportedOperationException();
   }
 }

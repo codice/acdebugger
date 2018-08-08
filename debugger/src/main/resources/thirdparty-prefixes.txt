@@ -1,0 +1,11 @@
+# Sets of 3rd party prefixes for bundles and/or package names. These are used as indicator of
+# where we are shouldn't provide solutions that consists in extending privileges using
+# doPrivileged() blocks.
+
+org.apache
+org.eclipse
+org.jolokia
+org.ops4j
+org.osgi
+org.springframework
+org.knopflerfish

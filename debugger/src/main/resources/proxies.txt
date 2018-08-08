@@ -1,0 +1,4 @@
+# Sets of signatures for proxy classes. These are used as indicator of where we are shouldn't
+# provide solutions that consists in extending privileges using doPrivileged() blocks.
+Ljava/lang/reflect/Proxy;
+Lorg/apache/aries/proxy/weaving/WovenProxy;

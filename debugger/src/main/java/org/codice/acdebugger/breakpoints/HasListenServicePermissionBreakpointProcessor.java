@@ -27,7 +27,7 @@ import org.codice.acdebugger.impl.BreakpointLocation;
  * Breakpoint processor specific to Eclipse's service registry which is used to detect all calls
  * that checks if a given bundle has permissions to receive service events.
  *
- * <i>Note:</i> Verified with org.eclipse.osgi 3.12.50.
+ * <p><i>Note:</i> Verified with org.eclipse.osgi 3.12.50.
  */
 @SuppressWarnings("squid:S1191" /* Using the Java debugger API */)
 public class HasListenServicePermissionBreakpointProcessor implements BreakpointProcessor {

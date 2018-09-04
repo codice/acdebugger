@@ -12,7 +12,9 @@
  *
  **/
 -->
-<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
 
     <parent>
@@ -67,7 +69,7 @@
                         <Bundle-SymbolicName>${project.artifactId}</Bundle-SymbolicName>
                         <Bundle-Vendor>Codice</Bundle-Vendor>
                         <Bundle-Activator>org.codice.acdebugger.backdoor.Backdoor</Bundle-Activator>
-                        <Embed-Dependency>acdebugger-common</Embed-Dependency>
+                        <Embed-Dependency>acdebugger-common, boon</Embed-Dependency>
                         <Require-Capability>
                             osgi.service;filter:="(objectClass=org.codice.acdebugger.PermissionService)";effective:=active;resolution:=optional
                         </Require-Capability>

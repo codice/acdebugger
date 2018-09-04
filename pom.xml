@@ -17,7 +17,7 @@
 
     <groupId>org.codice.acdebugger</groupId>
     <artifactId>acdebugger</artifactId>
-    <version>1.1-SNAPSHOT</version>
+    <version>1.1</version>
     <packaging>pom</packaging>
     <name>AC Debugger</name>
     <description>Access Control Debugger Parent</description>
@@ -37,9 +37,9 @@
 
     <properties>
         <!--  default URL properties -->
-        <codice.scm.connection.url/>
-        <snapshots.repository.url/>
-        <reports.repository.url/>
+        <codice.scm.connection.url />
+        <snapshots.repository.url />
+        <reports.repository.url />
 
         <maven.compiler.source>1.8</maven.compiler.source>
         <maven.compiler.target>1.8</maven.compiler.target>
@@ -54,7 +54,7 @@
         <url>https://github.com/codice/acdebugger</url>
         <connection>scm:git:https://github.com/codice/acdebugger.git</connection>
         <developerConnection>scm:git:https://github.com/codice/acdebugger.git</developerConnection>
-        <tag>acdebugger-1.0</tag>
+        <tag>acdebugger-1.1</tag>
     </scm>
 
     <distributionManagement>

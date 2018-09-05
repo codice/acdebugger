@@ -17,7 +17,7 @@
 
     <groupId>org.codice.acdebugger</groupId>
     <artifactId>acdebugger</artifactId>
-    <version>1.2-SNAPSHOT</version>
+    <version>1.2</version>
     <packaging>pom</packaging>
     <name>AC Debugger</name>
     <description>Access Control Debugger Parent</description>
@@ -54,7 +54,7 @@
         <url>https://github.com/codice/acdebugger</url>
         <connection>scm:git:https://github.com/codice/acdebugger.git</connection>
         <developerConnection>scm:git:https://github.com/codice/acdebugger.git</developerConnection>
-        <tag>acdebugger-1.1</tag>
+        <tag>acdebugger-1.2</tag>
     </scm>
 
     <distributionManagement>

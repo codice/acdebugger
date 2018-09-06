@@ -53,19 +53,22 @@ public class ACDebugger implements Callable<Void> {
 
   @Option(
     names = {"-t", "--transport"},
-    description = "Specifies the transport to use when connecting to the VM."
+    description =
+        "Specifies the transport to use when connecting to the VM. (default: ${DEFAULT-VALUE})"
   )
   String transport = "dt_socket";
 
   @Option(
     names = {"-H", "--host"},
-    description = "Specifies the host or IP where the VM to attach to is located."
+    description =
+        "Specifies the host or IP where the VM to attach to is located. (default: ${DEFAULT-VALUE})"
   )
   String host = "localhost";
 
   @Option(
     names = {"-p", "--port"},
-    description = "Specifies the port number the VM is awaiting debuggers to connect to."
+    description =
+        "Specifies the port number the VM is awaiting debuggers to connect to. (default:${DEFAULT-VALUE})"
   )
   String port = "5005";
 
@@ -79,7 +82,7 @@ public class ACDebugger implements Callable<Void> {
   @Option(
     names = {"--wait-timeout"},
     description =
-        "Only applies when the '--wait' option is used. Sets the maximum number of minutes to wait"
+        "Only applies when the '--wait' option is used. Sets the maximum number of minutes to wait. (default: ${DEFAULT-VALUE})"
   )
   long timeout = 10;
 

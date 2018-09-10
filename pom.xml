@@ -48,6 +48,8 @@
         <boon.version>0.34</boon.version>
         <osgi.version>5.0.0</osgi.version>
         <jsr305.version>3.0.2_1</jsr305.version>
+        <picocli.version>3.5.2</picocli.version>
+        <awaitility.version>3.1.2</awaitility.version>
     </properties>
 
     <scm>

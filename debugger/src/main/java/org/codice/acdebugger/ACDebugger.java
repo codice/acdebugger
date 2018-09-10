@@ -130,11 +130,7 @@ public class ACDebugger implements Callable<Void> {
     debugger.setDumping(dumping);
     debugger.setGranting(granting);
     debugger.setMonitoringService(service);
-    if (admin) {
-      debugger.setDoPrivilegedBlocks(false);
-    } else {
-      debugger.setDoPrivilegedBlocks(true);
-    }
+    debugger.setDoPrivilegedBlocks(!admin);
 
     // registering breakpoints
     debugger.add(new BackdoorProcessor());

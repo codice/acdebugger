@@ -16,14 +16,17 @@ be run by doing: `java -jar acdebugger-debugger-1.0-SNAPSHOT-jar-with-dependenci
 
 ### Options
 The following debugger options are available:
-* -host `<hostname or IP>`
-* -port `<port number>`
-* -wait `[<timeout>]`
-* -continuous
-* -admin
-* -dump
-* -service
-* -grant
+* --host `<hostname or IP>`
+* --port `<port number>`
+* --wait 
+* --wait-timeout `[<timeout>]` (only applies when `--wait` is used)
+* --continuous
+* --admin
+* --dump
+* --service
+* --grant
+* --help
+* --version
 
 ### Typical Output
 

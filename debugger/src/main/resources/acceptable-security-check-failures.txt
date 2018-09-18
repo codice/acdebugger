@@ -2,7 +2,7 @@
 # Each entry is defined as consecutive lines separated by a blank line where the first line is a
 # regular expression to match against the permission info string. The remaining lines are regular
 # expressions to match against separate stack lines' location portion only
-# (e.g. <bundle-name>(<location>)) as provided with the --dump option in the same order as listed.
+# (e.g. <bundle-name>(<location>)) as provided with the --debug option in the same order as listed.
 
 # pdfbox actually catches AccessControlException and continue without caching any fonts
 # since DDF doesn't care about the actual fonts as it only processes the metadata from pdf documents

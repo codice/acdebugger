@@ -6,7 +6,7 @@ The current implementation will put a breakpoint on line 472 of
 `java.security.AccessControlContext` (the throws clause), analyze and report possible solutions to the security failure. 
 It will do so for a single failure and exit unless the `-continuous` option is used in which case it will let the VM continue as if no failures had occurred and report for all failures (unless they were already detected and reported).
 The debugger also accounts for acceptable security failures. These are security failures that occurs in specific parts of the system which are deemed acceptable and for which no permissions need to be granted. 
-This is typically the case when the code actually handles such exceptions appropriately without consequences. When such failures are detected, the debugger will simply ignore them and let them fail normally without reporting them (unless the --dump option is specified).
+This is typically the case when the code actually handles such exceptions appropriately without consequences. When such failures are detected, the debugger will simply ignore them and let them fail normally without reporting them (unless the --debug option is specified).
 
 It also provides an option where it will put a breakpoint on line 1096 of `org.eclipse.osgi.internal.serviceregistry.ServiceRegistry` to detect all service permission checks done before the registry dispatches service events to other bundles. 
 This option is not on by default as it can slow down the system a bit.
@@ -41,39 +41,49 @@ As seen in the above example, the analysis gives priority to extending existing 
 
 ### Options
 The following debugger options are available:
-* --host `<hostname or IP>`
-* --port `<port number>`
-* --wait 
-* --wait-timeout `[<timeout>]` (only applies when `--wait` is used)
-* --continuous
-* --admin
-* --dump
-* --service
-* --grant
-* --help
-* --version
+* --help / -h
+* --host / -H `<hostname or IP>`
+* --port / -p `<port number>`
+* --wait / -w
+* --timeout `<timeout>` (only applies when `--wait` is used)
+* --continuous / -c
+* --admin / -a
+* --debug / -d
+* --service / -s
+* --grant / -g
+* --help / -h
+* --version / -V
 
-#### -host `<hostname or IP>`
+#### --help / -h 
+Prints out usage information and exit.
+
+#### --version / -V
+Prints version information and exit.
+
+#### --host / -H `<hostname or IP>`
 Specifies the host or IP where the VM to attach to is located
  
-#### -port `<port number>`
+#### --port / -p `<port number>`
 Specifies the port number the VM is awaiting debuggers to connect to
 
-#### -wait `[<timeout>]`
-Indicates to wait for a connection. The timeout is optional and indicates the maximum number of minutes to wait (defaults to 10 minutes).
+#### --wait / -w
+Indicates to wait for a connection. The default timeout is 10 minutes.
 
-#### -continuous
+#### --timeout `<timeout>`
+Specified to change the default timeout when waiting for a connection; it indicates the maximum number of minutes to wait (defaults to 10 minutes).
+
+#### --continuous / -c
 Specifies to run in continuous mode where the debugger will tell the VM not to fail on any security failures detected and report on all failures found.
 
-#### -admin
+#### --admin / -a
 Indicates the tool is being run for an admin. In such cases, the analysis won't be as extensive since an administrator wouldn't be able to modify the code for example.
 At the moment, it disables analyzing solutions that involve extending privileges in bundles using `doPrivileged()` blocks. 
 In the above example, only the second solution would have been reported if this option had been provided. As such, this option should not be used by developers.
 
-#### -dump
-Additional information about detected security failures such as stack traces and bundle information will be dumped along with solutions.
+#### --debug / -d
+Additional information about detected security failures such as stack traces and bundle information will be printed along with solutions.
 
-Here is an example of a dump:
+Here is an example of debug output:
 ```
  0136 - ACCESS CONTROL PERMISSION FAILURE
  ========================================
@@ -335,14 +345,14 @@ As in the context above, a line will show `-->` next to culprit which is respons
 The stack will also show a break line (` ----------------------------------------------------------`) whenever a `doPrivileged()` block is detected. 
 This means that everything after the block is ignored by the security manager.
 
-After having provided information about the current failure, possible options or solutions will be dumped in a similar fashion. 
+After having provided information about the current failure, possible options or solutions will be printed out in a similar fashion. 
 Additional information will be provided to indicate what needs to be done. 
 For example the `Granting permissions to bundles:` section will list a set of bundles that are given the missing permission(s).
 The `Extending privileges at:` section is used to indicate lines in the code where one can introduce a `doPrivileged()` block to solve the issue at hand.
 The stack that will follow will show how it would appear if the option were implemented. There should no longer be any failure; thus, no `-->` will be seen.
 
 The final section will list a summary of all possible solutions. Usually, these are sorted in order of priority but it is still up to the developer to assess which one is better suited in the current context. In the example above, there were 2 solutions.
-This section is the only one that will be printed out on the console when the `-dump` option is not specified.
+This section is the only one that will be printed out on the console when the `--debug` option is not specified.
 
 Here is an example when an acceptable failure is detected:
 ```
@@ -465,11 +475,11 @@ Stack:
 The differences above lie in the permission which is reported as a matching regular expression from the pre-configured acceptable failure definition and in a `#` character seen in the 8th stack line which indicates the line was matched against the same pre-configured acceptable failure definition. 
 Since it is considered an acceptable failure, no solutions section will be printed out.
  
-#### -service
+#### --service
 Specifies that a breakpoint should be added in Eclipse's Service Registry to detect internal security checks done for given bundles before dispatching service events. 
 These failures are analyzed and reported as normal security check failures. This option tends to slow down the system a bit as the debugger is invoked for all checks and not just when a failure is about to be reported.
 
-#### -grant
+#### --grant
 When specified, the debugger will use the backdoor and a registered ServicePermission service to temporarily grant permissions for detected security failures which after analysis yields a single solution. 
 This is only temporary and will not survive a restart of the VM but will prevent any further failures that would otherwise not be if the permission(s) were defined. 
 It also tends to slow down the system since the OSGi permission cache ends up being cleared each time.

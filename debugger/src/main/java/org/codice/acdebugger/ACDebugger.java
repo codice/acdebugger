@@ -33,7 +33,6 @@ import picocli.CommandLine.Option;
   versionProvider = PropertiesVersionProvider.class
 )
 public class ACDebugger implements Callable<Void> {
-
   @Option(
     names = {"-a", "--admin"},
     description =
@@ -54,12 +53,12 @@ public class ACDebugger implements Callable<Void> {
   private boolean continuous = false;
 
   @Option(
-    names = {"-d", "--dump"},
+    names = {"-d", "--debug"},
     description =
         "Additional information about detected security failures such as stack traces and bundle information "
             + "will be printed along with solutions."
   )
-  private boolean dumping = false;
+  private boolean debug = false;
 
   @Option(
     names = {"-g", "--grant"},
@@ -107,12 +106,12 @@ public class ACDebugger implements Callable<Void> {
   @Option(
     names = {"-w", "--wait"},
     description =
-        "Indicates to wait for a connection. To specify the timeout value use with the '--wait-timeout' option."
+        "Indicates to wait for a connection. To specify the timeout value use with the '--timeout' option."
   )
   private boolean wait = false;
 
   @Option(
-    names = {"--wait-timeout"},
+    names = {"--timeout"},
     description =
         "Only applies when the '--wait' option is used. Sets the maximum number of minutes to wait. (default: ${DEFAULT-VALUE})"
   )
@@ -141,7 +140,7 @@ public class ACDebugger implements Callable<Void> {
     }
     // configure options
     debugger.setContinuous(continuous);
-    debugger.setDumping(dumping);
+    debugger.setDebug(debug);
     debugger.setGranting(granting);
     debugger.setMonitoringService(service);
     debugger.setDoPrivilegedBlocks(!admin);

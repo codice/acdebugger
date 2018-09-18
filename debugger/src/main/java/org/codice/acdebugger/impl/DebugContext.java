@@ -43,7 +43,7 @@ public class DebugContext {
 
   private volatile boolean monitoring = false;
 
-  private volatile boolean dumping = false;
+  private volatile boolean debug = false;
 
   private volatile boolean doPrivileged = true;
 
@@ -190,24 +190,24 @@ public class DebugContext {
   }
 
   /**
-   * Checks if the dump mode has been enabled.
+   * Checks if the debug mode has been enabled.
    *
-   * @return <code>true</code> if the debugger will dump security failure information as they are
-   *     detected; <code>false</code> if only solutions are presented on the console
+   * @return <code>true</code> if the debugger will output additional security failure information
+   *     as they are detected; <code>false</code> if only solutions are presented on the console
    */
-  public boolean isDumping() {
-    return dumping;
+  public boolean isDebug() {
+    return debug;
   }
 
   /**
-   * Sets the dump mode where information about security failures detected is dumped to the console
+   * Sets the debug mode where information about security failures detected is dumped to the console
    * in addition to all the solutions.
    *
-   * @param dumping <code>true</code> to enable dumping of security failure information as they are
-   *     detected; <code>false</code> to only preset solutions
+   * @param debug <code>true</code> to enable debug output of security failure information as they
+   *     are detected; <code>false</code> to only preset solutions
    */
-  public void setDumping(boolean dumping) {
-    this.dumping = dumping;
+  public void setDebug(boolean debug) {
+    this.debug = debug;
   }
 
   /**
@@ -320,7 +320,7 @@ public class DebugContext {
                     && f.getStack().equals(failure.getStack()))) {
       return;
     }
-    if (dumping) {
+    if (debug) {
       failure.dump(continuous ? String.format("%n%04d - ", (++count)) : "");
     } else {
       if (continuous) {
@@ -355,7 +355,7 @@ public class DebugContext {
     // (no privileged blocks) in which case we shall cache them to avoid going through all
     // of this again (if not in continuous mode, then we don't really care about that)
     grantMissingPermissionsIfPossible(solutions);
-    if (dumping) {
+    if (debug) {
       failure.dump(continuous ? String.format("%n%04d - ", (++count)) : "");
     } else {
       if (continuous) {

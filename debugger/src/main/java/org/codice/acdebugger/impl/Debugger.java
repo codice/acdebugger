@@ -96,14 +96,14 @@ public class Debugger {
   }
 
   /**
-   * Sets the dump mode where information about security failures detected is dumped to the console
+   * Sets the debug mode where information about security failures detected is dumped to the console
    * in addition to all the solutions.
    *
-   * @param dumping <code>true</code> to enable dumping of security failure information as they are
-   *     detected; <code>false</code> to only preset solutions
+   * @param debug <code>true</code> to enable debug output of security failure information as they
+   *     are detected; <code>false</code> to only preset solutions
    */
-  public void setDumping(boolean dumping) {
-    context.setDumping(dumping);
+  public void setDebug(boolean debug) {
+    context.setDebug(debug);
   }
 
   /**

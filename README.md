@@ -5,8 +5,8 @@ Purpose-built debugger for determining missing OSGi bundle security permissions.
 The current implementation will put a breakpoint on line 472 of
 `java.security.AccessControlContext` (the throws clause), analyze and report possible solutions to the security failure. 
 It will do so for a single failure and exit unless the `-continuous` option is used in which case it will let the VM continue as if no failures had occurred and report for all failures (unless they were already detected and reported).
-The debugger also accounts for acceptable security failures. These are security failures that occurs in specific parts of the system which are deemed acceptable and for which no permissions requires granting. 
-This is typically the case when the code actually handles such exception appropriately without consequences. When such failures are detected, the debugger will simply ignore them and let them fail normally without reporting them (unless the --dump option is specified).
+The debugger also accounts for acceptable security failures. These are security failures that occurs in specific parts of the system which are deemed acceptable and for which no permissions need to be granted. 
+This is typically the case when the code actually handles such exceptions appropriately without consequences. When such failures are detected, the debugger will simply ignore them and let them fail normally without reporting them (unless the --dump option is specified).
 
 It also provides an option where it will put a breakpoint on line 1096 of `org.eclipse.osgi.internal.serviceregistry.ServiceRegistry` to detect all service permission checks done before the registry dispatches service events to other bundles. 
 This option is not on by default as it can slow down the system a bit.

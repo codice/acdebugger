@@ -14,12 +14,12 @@
 package org.codice.acdebugger.impl;
 
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentSkipListSet;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
 import javax.annotation.Nullable;
 import org.codice.acdebugger.api.SecurityFailure;
@@ -33,7 +33,7 @@ public class DebugContext {
 
   private final Map<String, Object> map = new ConcurrentHashMap<>();
 
-  private final List<SecurityFailure> failures = Collections.synchronizedList(new ArrayList<>());
+  private final List<SecurityFailure> failures = new ArrayList<>();
 
   private int count = 0;
 
@@ -295,49 +295,84 @@ public class DebugContext {
    *
    * @param failure the security failure to record
    */
-  @SuppressWarnings("squid:S106" /* this is a console application */)
   public void record(SecurityFailure failure) {
     synchronized (failures) {
-      final List<SecuritySolution> solutions = failure.analyze();
-
       failures.add(failure);
-      if (solutions.isEmpty()) { // no solutions so ignore
-        return;
-      }
-      // check to see if we have another recorded failure with the exact same set of solutions
-      if (failures
-          .stream()
-          .filter(i -> i != failure)
-          .map(SecurityFailure::analyze)
-          .anyMatch(solutions::equals)) {
-        return;
-      }
-      if (!continuous) { // stop processing
-        this.run = false;
-      }
-      // check if we have only one solution and that solution is to only grant permission(s)
-      // (no privileged blocks) in which case we shall cache them to avoid going through all
-      // of this again (if not in continuous mode, then we don't really care about that)
-      grantMissingPermissionsIfPossible(solutions);
-      if (dumping) {
-        failure.dump(continuous ? String.format("%n%04d - ", (++count)) : "");
+      if (failure.isAcceptable()) {
+        recordAcceptableFailure(failure);
       } else {
-        if (continuous) {
-          System.out.printf("%04d - %s {%n", (++count), failure);
-        } else {
-          System.out.printf("%s {%n", failure);
-        }
-        if (solutions.size() > 1) {
-          System.out.println(
-              "    Analyze the following " + solutions.size() + " solutions and choose the best:");
-        } else {
-          System.out.println("    Solution:");
-        }
-        solutions.forEach(s -> s.print("    "));
-        System.out.println("}");
-        if (!continuous) {
-          this.run = false;
-        }
+        recordUnacceptableFailure(failure);
+      }
+    }
+  }
+
+  @SuppressWarnings("squid:S106" /* this is a console application */)
+  private void recordAcceptableFailure(SecurityFailure failure) {
+    // check to see if we have another recorded failure with the exact same reason for being
+    // acceptable in which case we do not want to trace it again
+    if (failures
+        .stream()
+        .filter(i -> i != failure)
+        .filter(SecurityFailure::isAcceptable)
+        .anyMatch(
+            f ->
+                f.getAcceptablePermissions().equals(failure.getAcceptablePermissions())
+                    && f.getStack().equals(failure.getStack()))) {
+      return;
+    }
+    if (dumping) {
+      failure.dump(continuous ? String.format("%n%04d - ", (++count)) : "");
+    } else {
+      if (continuous) {
+        System.out.printf("%04d - %s {%n", (++count), failure);
+      } else {
+        System.out.printf("%s {%n", failure);
+      }
+      System.out.println("}");
+    }
+  }
+
+  @SuppressWarnings("squid:S106" /* this is a console application */)
+  private void recordUnacceptableFailure(SecurityFailure failure) {
+    final List<SecuritySolution> solutions = failure.analyze();
+
+    if (solutions.isEmpty()) { // no solutions so ignore
+      return;
+    }
+    // check to see if we have another recorded failure with the exact same set of solutions
+    if (failures
+        .stream()
+        .filter(i -> i != failure)
+        .filter(((Predicate<SecurityFailure>) SecurityFailure::isAcceptable).negate())
+        .map(SecurityFailure::analyze)
+        .anyMatch(solutions::equals)) {
+      return;
+    }
+    if (!continuous) { // stop processing
+      this.run = false;
+    }
+    // check if we have only one solution and that solution is to only grant permission(s)
+    // (no privileged blocks) in which case we shall cache them to avoid going through all
+    // of this again (if not in continuous mode, then we don't really care about that)
+    grantMissingPermissionsIfPossible(solutions);
+    if (dumping) {
+      failure.dump(continuous ? String.format("%n%04d - ", (++count)) : "");
+    } else {
+      if (continuous) {
+        System.out.printf("%04d - %s {%n", (++count), failure);
+      } else {
+        System.out.printf("%s {%n", failure);
+      }
+      if (solutions.size() > 1) {
+        System.out.println(
+            "    Analyze the following " + solutions.size() + " solutions and choose the best:");
+      } else {
+        System.out.println("    Solution:");
+      }
+      solutions.forEach(s -> s.print("    "));
+      System.out.println("}");
+      if (!continuous) {
+        this.run = false;
       }
     }
   }

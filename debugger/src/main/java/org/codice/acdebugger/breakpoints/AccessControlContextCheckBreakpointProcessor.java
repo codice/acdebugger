@@ -56,19 +56,21 @@ public class AccessControlContextCheckBreakpointProcessor implements BreakpointP
         new SecurityCheckInformation(debug, context, local_i, permission);
 
     if (security.getFailedBundle() != null) {
-      // check if we have only one solution and that solution is to only grant permission(s)
-      // (no privileged blocks) in which case we shall cache them to avoid going through all
-      // of this again
-      final List<SecuritySolution> solutions = security.analyze();
+      if (!security.isAcceptable()) {
+        // check if we have only one solution and that solution is to only grant permission(s)
+        // (no privileged blocks) in which case we shall cache them to avoid going through all
+        // of this again
+        final List<SecuritySolution> solutions = security.analyze();
 
-      if (solutions.size() == 1) {
-        final SecuritySolution solution = solutions.get(0);
-        final Set<String> grantedBundles = solution.getGrantedBundles();
+        if (solutions.size() == 1) {
+          final SecuritySolution solution = solutions.get(0);
+          final Set<String> grantedBundles = solution.getGrantedBundles();
 
-        if (!grantedBundles.isEmpty() && solution.getDoPrivilegedLocations().isEmpty()) {
-          solution
-              .getGrantedBundles()
-              .forEach(b -> debug.permissions().grant(b, solution.getPermissions()));
+          if (!grantedBundles.isEmpty() && solution.getDoPrivilegedLocations().isEmpty()) {
+            solution
+                .getGrantedBundles()
+                .forEach(b -> debug.permissions().grant(b, solution.getPermissions()));
+          }
         }
       }
       debug.record(security);
@@ -76,10 +78,11 @@ public class AccessControlContextCheckBreakpointProcessor implements BreakpointP
     //          bundle the missing permissions we use in the ctor to determine if bundles have
     //          permissions so even if the VM tells us there was an exception, we skip over it right
     //          away
-    if (debug.isContinuous()) {
+    if (debug.isContinuous() && !security.isAcceptable()) {
       // force early return as if no exception is thrown, that way we simulate no security
       // exceptions; allowing us to record what is missing while continuing to run
       thread.forceEarlyReturn(debug.reflection().getVoid());
-    } // else - let it fail as intended
+    } // else - let it fail as intended since we aren't continuing or again it is an acceptable
+    //          failure
   }
 }

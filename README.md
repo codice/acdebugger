@@ -5,6 +5,8 @@ Purpose-built debugger for determining missing OSGi bundle security permissions.
 The current implementation will put a breakpoint on line 472 of
 `java.security.AccessControlContext` (the throws clause), analyze and report possible solutions to the security failure. 
 It will do so for a single failure and exit unless the `-continuous` option is used in which case it will let the VM continue as if no failures had occurred and report for all failures (unless they were already detected and reported).
+The debugger also accounts for acceptable security failures. These are security failures that occurs in specific parts of the system which are deemed acceptable and for which no permissions requires granting. 
+This is typically the case when the code actually handles such exception appropriately without consequences. When such failures are detected, the debugger will simply ignore them and let them fail normally without reporting them (unless the --dump option is specified).
 
 It also provides an option where it will put a breakpoint on line 1096 of `org.eclipse.osgi.internal.serviceregistry.ServiceRegistry` to detect all service permission checks done before the registry dispatches service events to other bundles. 
 This option is not on by default as it can slow down the system a bit.
@@ -14,22 +16,7 @@ To run the debugger tool, open the debugger project in IDE and run the `org.codi
 The maven build can be used to produce an executable jar. The jar can
 be run by doing: `java -jar acdebugger-debugger-1.0-SNAPSHOT-jar-with-dependencies.jar [options]>`
 
-### Options
-The following debugger options are available:
-* --host `<hostname or IP>`
-* --port `<port number>`
-* --wait 
-* --wait-timeout `[<timeout>]` (only applies when `--wait` is used)
-* --continuous
-* --admin
-* --dump
-* --service
-* --grant
-* --help
-* --version
-
 ### Typical Output
-
 ```
 0002 - Check permission failure for platform-migratable-api: java.io.FilePermission "/projects/ddf-2.14.0-SNAPSHOT/security/configurations.policy", "read" {
     Analyze the following 2 solutions and choose the best:
@@ -46,11 +33,25 @@ The following debugger options are available:
 }
 ```
 
-The above example is reporting the second analysis solutions block with 2 potential solutions. 
+The above example is reporting the second analysis solutions block with 2 potential solutions.
 It lists on the first line the bundle currently responsible (`platform-migratable-api`) for the failure and the corresponding permission(s).
-You will also see a summary of all possible solutions to the problem. 
+You will also see a summary of all possible solutions to the problem.
 These are sorted in order of priority but it is still up to the developer to assess which one is better suited in the current context.
-As seen in the above example, the analysis gives priority to extending existing privileges to solve a security failure over introducing a permission to a new bundle. 
+As seen in the above example, the analysis gives priority to extending existing privileges to solve a security failure over introducing a permission to a new bundle.
+
+### Options
+The following debugger options are available:
+* --host `<hostname or IP>`
+* --port `<port number>`
+* --wait 
+* --wait-timeout `[<timeout>]` (only applies when `--wait` is used)
+* --continuous
+* --admin
+* --dump
+* --service
+* --grant
+* --help
+* --version
 
 #### -host `<hostname or IP>`
 Specifies the host or IP where the VM to attach to is located
@@ -342,6 +343,127 @@ The stack that will follow will show how it would appear if the option were impl
 
 The final section will list a summary of all possible solutions. Usually, these are sorted in order of priority but it is still up to the developer to assess which one is better suited in the current context. In the example above, there were 2 solutions.
 This section is the only one that will be printed out on the console when the `-dump` option is not specified.
+
+Here is an example when an acceptable failure is detected:
+```
+0141 - ACCEPTABLE ACCESS CONTROL PERMISSION FAILURE
+===================================================
+Acceptable permission:
+    REGEX: java\.io\.FilePermission ".*", "read"
+Context:
+     bundle-0
+ --> *org.codice.thirdparty.tika-bundle
+Stack:
+     at bundle-0(java.security.AccessControlContext:472)
+     at bundle-0(java.security.AccessController:884)
+     at bundle-0(java.lang.SecurityManager:549)
+     at bundle-0(java.lang.SecurityManager:888)
+     at bundle-0(java.io.File:814)
+ --> at *org.codice.thirdparty.tika-bundle(org.apache.fontbox.util.autodetect.NativeFontDirFinder:47)
+     at *org.codice.thirdparty.tika-bundle(org.apache.fontbox.util.autodetect.FontFileFinder:75)
+     at #*org.codice.thirdparty.tika-bundle(org.apache.pdfbox.pdmodel.font.FileSystemFontProvider:214)
+     at *org.codice.thirdparty.tika-bundle(org.apache.pdfbox.pdmodel.font.FontMapperImpl$DefaultFontProvider:130)
+     at *org.codice.thirdparty.tika-bundle(org.apache.pdfbox.pdmodel.font.FontMapperImpl:149)
+     at *org.codice.thirdparty.tika-bundle(org.apache.pdfbox.pdmodel.font.FontMapperImpl:413)
+     at *org.codice.thirdparty.tika-bundle(org.apache.pdfbox.pdmodel.font.FontMapperImpl:376)
+     at *org.codice.thirdparty.tika-bundle(org.apache.pdfbox.pdmodel.font.FontMapperImpl:350)
+     at *org.codice.thirdparty.tika-bundle(org.apache.pdfbox.pdmodel.font.PDType1Font:146)
+     at *org.codice.thirdparty.tika-bundle(org.apache.pdfbox.pdmodel.font.PDType1Font:79)
+     at *org.codice.thirdparty.tika-bundle(org.apache.pdfbox.pdmodel.interactive.form.PDAcroForm:128)
+     at *org.codice.thirdparty.tika-bundle(org.apache.pdfbox.pdmodel.interactive.form.PDAcroForm:93)
+     at *org.codice.thirdparty.tika-bundle(org.apache.pdfbox.pdmodel.PDDocumentCatalog:109)
+     at *org.codice.thirdparty.tika-bundle(org.apache.tika.parser.pdf.AbstractPDF2XHTML:598)
+     at *org.codice.thirdparty.tika-bundle(org.apache.tika.parser.pdf.AbstractPDF2XHTML:545)
+     at *org.codice.thirdparty.tika-bundle(org.apache.pdfbox.text.PDFTextStripper:267)
+     at *org.codice.thirdparty.tika-bundle(org.apache.tika.parser.pdf.PDF2XHTML:117)
+     at *org.codice.thirdparty.tika-bundle(org.apache.tika.parser.pdf.PDFParser:171)
+     at *org.apache.tika.core(org.apache.tika.parser.CompositeParser:280)
+     at *org.apache.tika.core(org.apache.tika.parser.CompositeParser:280)
+     at *org.apache.tika.core(org.apache.tika.parser.CompositeParser:280)
+     at *org.apache.tika.core(org.apache.tika.parser.AutoDetectParser:143)
+     at *catalog-transformer-pdf(ddf.catalog.transformer.common.tika.TikaMetadataExtractor:75)
+     at *catalog-transformer-pdf(ddf.catalog.transformer.common.tika.TikaMetadataExtractor:68)
+     at *catalog-transformer-pdf(ddf.catalog.transformer.input.pdf.PdfInputTransformer:229)
+     at *catalog-transformer-pdf(ddf.catalog.transformer.input.pdf.PdfInputTransformer:170)
+     at *catalog-transformer-pdf(ddf.catalog.transformer.input.pdf.PdfInputTransformer:153)
+     at *catalog-core-standardframework(ddf.catalog.impl.operations.MetacardFactory:75)
+     at *catalog-core-standardframework(ddf.catalog.impl.operations.OperationsMetacardSupport:156)
+     at *catalog-core-standardframework(ddf.catalog.impl.operations.CreateOperations:141)
+     at *catalog-core-standardframework(ddf.catalog.impl.CatalogFrameworkImpl:237)
+     at *catalog-rest-impl(Proxy657df4cb_72a9_4651_97be_9316fe1dabb9.create(ddf.catalog.content.operation.CreateStorageRequest)+58)
+     at *catalog-rest-impl(org.codice.ddf.rest.impl.CatalogServiceImpl:764)
+     at *catalog-rest-impl(org.codice.ddf.rest.impl.CatalogServiceImpl:727)
+     at *catalog-ui-search(Proxye57e7ff3_143d_40a0_beef_f9bad6b72587.addDocument(java.util.List, javax.servlet.http.HttpServletRequest, java.lang.String, java.io.InputStream)+77)
+     at *catalog-ui-search(org.codice.ddf.catalog.ui.catalog.CatalogApplication:375)
+     at *catalog-ui-search(org.codice.ddf.catalog.ui.catalog.CatalogApplication:150)
+     at *catalog-ui-search(org.codice.ddf.catalog.ui.catalog.CatalogApplication$$Lambda$808.525212850.handle(spark.Request, spark.Response)+6)
+     at *catalog-ui-search(spark.RouteImpl$1:61)
+     at *catalog-ui-search(spark.http.matching.Routes:61)
+     at *catalog-ui-search(spark.http.matching.MatcherFilter:130)
+     at *catalog-ui-search(org.codice.ddf.catalog.ui.SparkServlet:146)
+     at *javax.servlet-api(javax.servlet.http.HttpServlet:790)
+     at *org.eclipse.jetty.servlet(org.eclipse.jetty.servlet.ServletHolder:840)
+     at *org.eclipse.jetty.servlet(org.eclipse.jetty.servlet.ServletHandler$CachedChain:1772)
+     at *platform-filter-delegate(org.codice.ddf.platform.filter.delegate.ProxyFilterChain:98)
+     at *platform-filter-clientinfo(org.codice.ddf.platform.filter.clientinfo.ClientInfoFilter:72)
+     at *platform-filter-delegate(org.codice.ddf.platform.filter.delegate.ProxyFilterChain:91)
+     at *platform-filter-response(org.codice.ddf.platform.response.filter.ResponseFilter:96)
+     at *platform-filter-delegate(org.codice.ddf.platform.filter.delegate.ProxyFilterChain:91)
+     at *security-filter-authorization(org.codice.ddf.security.filter.authorization.AuthorizationFilter:103)
+     at *platform-filter-delegate(org.codice.ddf.platform.filter.delegate.ProxyFilterChain:91)
+     at *security-filter-login(org.codice.ddf.security.filter.login.LoginFilter:271)
+     at *security-filter-login(org.codice.ddf.security.filter.login.LoginFilter$$Lambda$531.1165582791.run()+12)
+     at bundle-0(java.security.AccessController.doPrivileged(java.security.PrivilegedExceptionAction, java.security.AccessControlContext)+-1)
+     at bundle-0(javax.security.auth.Subject:422)
+    ----------------------------------------------------------
+     at *security-filter-login(org.codice.ddf.security.filter.login.LoginFilter:281)
+     at *security-filter-login(org.codice.ddf.security.filter.login.LoginFilter$$Lambda$530.644881876.call()+16)
+     at *org.apache.shiro.core(org.apache.shiro.subject.support.SubjectCallable:90)
+     at *org.apache.shiro.core(org.apache.shiro.subject.support.SubjectCallable:83)
+     at *org.apache.shiro.core(org.apache.shiro.subject.support.DelegatingSubject:383)
+     at *security-filter-login(org.codice.ddf.security.filter.login.LoginFilter:267)
+     at *platform-filter-delegate(org.codice.ddf.platform.filter.delegate.ProxyFilterChain:91)
+     at *security-filter-web-sso(org.codice.ddf.security.filter.websso.WebSSOFilter:229)
+     at *security-filter-web-sso(org.codice.ddf.security.filter.websso.WebSSOFilter:122)
+     at *platform-filter-delegate(org.codice.ddf.platform.filter.delegate.ProxyFilterChain:91)
+     at *security-filter-csrf(org.codice.ddf.security.filter.csrf.CsrfFilter:146)
+     at *platform-filter-delegate(org.codice.ddf.platform.filter.delegate.ProxyFilterChain:91)
+     at *platform-filter-delegate(org.codice.ddf.platform.filter.delegate.DelegateServletFilter:119)
+     at *org.eclipse.jetty.servlet(org.eclipse.jetty.servlet.ServletHandler$CachedChain:1759)
+     at *org.eclipse.jetty.websocket.server(org.eclipse.jetty.websocket.server.WebSocketUpgradeFilter:205)
+     at *org.eclipse.jetty.servlet(org.eclipse.jetty.servlet.ServletHandler$CachedChain:1759)
+     at *org.eclipse.jetty.servlet(org.eclipse.jetty.servlet.ServletHandler:582)
+     at *org.ops4j.pax.web.pax-web-jetty(org.ops4j.pax.web.service.jetty.internal.HttpServiceServletHandler:71)
+     at *org.eclipse.jetty.server(org.eclipse.jetty.server.handler.ScopedHandler:143)
+     at *org.eclipse.jetty.security(org.eclipse.jetty.security.SecurityHandler:548)
+     at *org.eclipse.jetty.server(org.eclipse.jetty.server.session.SessionHandler:226)
+     at *org.eclipse.jetty.server(org.eclipse.jetty.server.handler.ContextHandler:1180)
+     at *org.ops4j.pax.web.pax-web-jetty(org.ops4j.pax.web.service.jetty.internal.HttpServiceContext:296)
+     at *org.eclipse.jetty.servlet(org.eclipse.jetty.servlet.ServletHandler:512)
+     at *org.eclipse.jetty.server(org.eclipse.jetty.server.session.SessionHandler:185)
+     at *org.eclipse.jetty.server(org.eclipse.jetty.server.handler.ContextHandler:1112)
+     at *org.eclipse.jetty.server(org.eclipse.jetty.server.handler.ScopedHandler:141)
+     at *org.ops4j.pax.web.pax-web-jetty(org.ops4j.pax.web.service.jetty.internal.JettyServerHandlerCollection:80)
+     at *org.eclipse.jetty.server(org.eclipse.jetty.server.handler.HandlerWrapper:134)
+     at *org.eclipse.jetty.server(org.eclipse.jetty.server.Server:539)
+     at *org.eclipse.jetty.server(org.eclipse.jetty.server.HttpChannel:333)
+     at *org.eclipse.jetty.server(org.eclipse.jetty.server.HttpConnection:251)
+     at *org.eclipse.jetty.io(org.eclipse.jetty.io.AbstractConnection$ReadCallback:283)
+     at *org.eclipse.jetty.io(org.eclipse.jetty.io.FillInterest:108)
+     at *org.eclipse.jetty.io(org.eclipse.jetty.io.ssl.SslConnection:251)
+     at *org.eclipse.jetty.io(org.eclipse.jetty.io.AbstractConnection$ReadCallback:283)
+     at *org.eclipse.jetty.io(org.eclipse.jetty.io.FillInterest:108)
+     at *org.eclipse.jetty.io(org.eclipse.jetty.io.SelectChannelEndPoint$2:93)
+     at *org.eclipse.jetty.util(org.eclipse.jetty.util.thread.strategy.ExecuteProduceConsume:303)
+     at *org.eclipse.jetty.util(org.eclipse.jetty.util.thread.strategy.ExecuteProduceConsume:148)
+     at *org.eclipse.jetty.util(org.eclipse.jetty.util.thread.strategy.ExecuteProduceConsume:136)
+     at *org.eclipse.jetty.util(org.eclipse.jetty.util.thread.QueuedThreadPool:671)
+     at *org.eclipse.jetty.util(org.eclipse.jetty.util.thread.QueuedThreadPool$2:589)
+     at bundle-0(java.lang.Thread:748)
+```
+
+The differences above lie in the permission which is reported as a matching regular expression from the pre-configured acceptable failure definition and in a `#` character seen in the 8th stack line which indicates the line was matched against the same pre-configured acceptable failure definition. 
+Since it is considered an acceptable failure, no solutions section will be printed out.
  
 #### -service
 Specifies that a breakpoint should be added in Eclipse's Service Registry to detect internal security checks done for given bundles before dispatching service events. 
@@ -369,7 +491,7 @@ Defines a bundle that provides backdoor support to the debugger. It should be in
 Creates an executable jar with the debugger tool.
 
 #### acdebugger-common
-Defines a library of common classes used by both the backdoor and the debugger. This artifact is embeded inside the backdoor bundle.
+Defines a library of common classes used by both the backdoor and the debugger. This artifact is embedded inside the backdoor bundle.
 
 ### Future iterations
 Future implementations will:

@@ -13,18 +13,24 @@
  */
 package org.codice.acdebugger.breakpoints;
 
+import com.google.common.base.Charsets;
 import com.google.common.collect.Ordering;
+import com.google.common.io.LineProcessor;
+import com.google.common.io.Resources;
 import com.sun.jdi.ArrayReference;
 import com.sun.jdi.Location;
 import com.sun.jdi.ObjectReference;
 import com.sun.jdi.StackFrame;
 import com.sun.jdi.Value;
+import java.io.IOError;
+import java.io.IOException;
 import java.security.Permission;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.regex.Matcher;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import javax.annotation.Nullable;
@@ -40,6 +46,27 @@ import org.codice.acdebugger.api.StackFrameInformation;
  */
 @SuppressWarnings("squid:S1191" /* Using the Java debugger API */)
 class SecurityCheckInformation extends SecuritySolution implements SecurityFailure {
+  /**
+   * List of patterns to match security check information that should be considered acceptable
+   * failures and skipped.
+   */
+  private static final List<Pattern> ACCEPTABLE_PATTERNS;
+
+  private static final String DOUBLE_LINES =
+      "=======================================================================";
+
+  static {
+    try {
+      ACCEPTABLE_PATTERNS =
+          Resources.readLines(
+              Resources.getResource("acceptable-security-check-failures.txt"),
+              Charsets.UTF_8,
+              new PatternProcessor());
+    } catch (IOException e) {
+      throw new IOError(e);
+    }
+  }
+
   /** context array from AccessControlContext at line 472 */
   private final List<Value> context;
 
@@ -79,6 +106,9 @@ class SecurityCheckInformation extends SecuritySolution implements SecurityFailu
   private int privilegedStackIndex = -1;
 
   private final boolean invalid;
+
+  /** First pattern that was matched indicating the failure was acceptable. */
+  private Pattern acceptablePattern = null;
 
   private List<SecuritySolution> analysis = null;
 
@@ -122,11 +152,6 @@ class SecurityCheckInformation extends SecuritySolution implements SecurityFailu
     this.context = context;
     this.currentDomain = context.get(local_i);
     this.currentBundle = debug.bundles().get(currentDomain);
-    if (currentBundle == null) {
-      // since bundle-0 always has all permissions, we cannot received null as the current bundle
-      // where the failure occurred
-      throw new Error("unable to find bundle for domain: " + currentDomain.type().name());
-    }
     this.domains = new ArrayList<>(context.size());
     this.permission = permission;
     this.privilegedDomains = new HashSet<>(context.size() * 3 / 2);
@@ -163,6 +188,12 @@ class SecurityCheckInformation extends SecuritySolution implements SecurityFailu
           new StackFrameInformation(bundle, location, thisObject);
 
       stack.add(currentFrame);
+    }
+    if (currentBundle == null) {
+      // since bundle-0 always has all permissions, we cannot received null as the current bundle
+      // where the failure occurred
+      dumpTroubleshootingInfo(local_i);
+      throw new Error("unable to find bundle for domain: " + currentDomain.type().name());
     }
     this.invalid = !recompute();
     analyze0(debug);
@@ -240,6 +271,22 @@ class SecurityCheckInformation extends SecuritySolution implements SecurityFailu
   }
 
   @Override
+  public List<StackFrameInformation> getStack() {
+    return Collections.unmodifiableList(stack);
+  }
+
+  @Override
+  public boolean isAcceptable() {
+    return acceptablePattern != null;
+  }
+
+  @Override
+  @Nullable
+  public String getAcceptablePermissions() {
+    return isAcceptable() ? "REGEX: " + acceptablePattern.getPermissionInfos() : null;
+  }
+
+  @Override
   public Set<String> getGrantedBundles() {
     return Collections.unmodifiableSet(grantedBundles);
   }
@@ -257,38 +304,50 @@ class SecurityCheckInformation extends SecuritySolution implements SecurityFailu
   @SuppressWarnings("squid:S106" /* this is a console application */)
   @Override
   public void dump(String prefix) {
-    final String first = prefix + "ACCESS CONTROL PERMISSION FAILURE";
+    final String first =
+        prefix + (isAcceptable() ? "ACCEPTABLE " : "") + "ACCESS CONTROL PERMISSION FAILURE";
 
     System.out.println(first);
     System.out.println(
         IntStream.range(1, first.length()).mapToObj(i -> "=").collect(Collectors.joining("")));
     dump0();
-    analyze();
-    for (int i = 0; i < analysis.size(); i++) {
-      final SecuritySolution info = analysis.get(i);
+    if (!isAcceptable()) {
+      for (int i = 0; i < analysis.size(); i++) {
+        final SecuritySolution info = analysis.get(i);
 
-      System.out.println("");
-      System.out.println("OPTION " + (i + 1));
-      System.out.println("--------");
-      ((SecurityCheckInformation) info).dump0();
+        System.out.println("");
+        System.out.println("OPTION " + (i + 1));
+        System.out.println("--------");
+        ((SecurityCheckInformation) info).dump0();
+      }
+      if (!analysis.isEmpty()) {
+        System.out.println("");
+        System.out.println("SOLUTIONS");
+        System.out.println("---------");
+        analysis.forEach(SecuritySolution::print);
+      }
     }
-    System.out.println("");
-    System.out.println("SOLUTIONS");
-    System.out.println("---------");
-    analysis.forEach(SecuritySolution::print);
   }
 
   @Override
   public String toString() {
     if (currentBundle == null) {
       return "";
-    } else if (permissionInfos.size() == 1) {
-      return "Check permission failure for "
+    }
+    if (isAcceptable()) {
+      return "Acceptable check permissions failure for "
           + currentBundle
           + ": "
-          + permissionInfos.iterator().next();
+          + getAcceptablePermissions();
+    } else {
+      if (permissionInfos.size() == 1) {
+        return "Check permission failure for "
+            + currentBundle
+            + ": "
+            + permissionInfos.iterator().next();
+      }
+      return "Check permissions failure for " + currentBundle + ": " + permissionInfos;
     }
-    return "Check permissions failure for " + currentBundle + ": " + permissionInfos;
   }
 
   /**
@@ -309,6 +368,9 @@ class SecurityCheckInformation extends SecuritySolution implements SecurityFailu
    * simpler to keep the same logic to recompute. I kept the code around and left it in the private
    * constructor with the dummy parameter.
    *
+   * <p>We shall also check the stack and the failed permission against all acceptable patterns and
+   * if one matches, we will skip mark it as acceptable.
+   *
    * @return <code>true</code> if all granted domains were required; <code>false</code> if we didn't
    *     need all of them which would mean this is an invalid option as we are granting more than we
    *     need
@@ -318,6 +380,12 @@ class SecurityCheckInformation extends SecuritySolution implements SecurityFailu
     this.privilegedStackIndex = -1;
     this.failedStackIndex = -1;
     final Set<String> grantedDomains = new HashSet<>(this.grantedBundles);
+    final List<Pattern> stackPatterns =
+        SecurityCheckInformation.ACCEPTABLE_PATTERNS
+            .stream()
+            .filter(p -> p.matchAllPermissions(permissionInfos))
+            .map(Pattern::new)
+            .collect(Collectors.toList());
     String failedBundle = null;
 
     for (int i = 0; i < stack.size(); i++) {
@@ -326,6 +394,19 @@ class SecurityCheckInformation extends SecuritySolution implements SecurityFailu
       if (frame.isDoPrivilegedBlock()) { // stop here
         this.privilegedStackIndex = i + 1;
         break;
+      }
+      final String location = frame.getLocation();
+
+      if (!isAcceptable()) {
+        final int index = i;
+
+        this.acceptablePattern =
+            stackPatterns
+                .stream()
+                .filter(p -> p.matchLocations(index, location))
+                .filter(Pattern::wasAllMatched)
+                .findFirst()
+                .orElse(null);
       }
       final String bundle = frame.getBundle();
 
@@ -348,13 +429,14 @@ class SecurityCheckInformation extends SecuritySolution implements SecurityFailu
   }
 
   private boolean isInvalidOrHasNoFailuresDetected() {
-    return (failedStackIndex == -1) || invalid;
+    return (failedStackIndex == -1) || invalid || isAcceptable();
   }
 
   private List<SecuritySolution> analyze0(Debug debug) {
     if (analysis == null) {
       if (isInvalidOrHasNoFailuresDetected()) {
         // no issues here or invalid options so nothing to be done
+        // still return self for cases where this instance represent a solution
         this.analysis = Collections.singletonList(this);
       } else {
         this.analysis = new ArrayList<>();
@@ -381,11 +463,20 @@ class SecurityCheckInformation extends SecuritySolution implements SecurityFailu
   }
 
   @SuppressWarnings("squid:S106" /* this is a console application */)
-  private void dump0() {
-    final String s = (permissionInfos.size() == 1) ? "" : "s";
+  private void dumpPermission() {
+    if (isAcceptable()) {
+      System.out.println("Acceptable permissions:");
+      System.out.println("    " + getAcceptablePermissions());
+    } else {
+      final String s = (permissionInfos.size() == 1) ? "" : "s";
 
-    System.out.println("Permission" + s + ":");
-    permissionInfos.forEach(p -> System.out.println("    " + p));
+      System.out.println("Permission" + s + ":");
+      permissionInfos.forEach(p -> System.out.println("    " + p));
+    }
+  }
+
+  @SuppressWarnings("squid:S106" /* this is a console application */)
+  private void dumpHowToFix() {
     if (!grantedBundles.isEmpty()) {
       System.out.println("Granting permission to bundles:");
       grantedBundles.forEach(d -> System.out.println("    " + d));
@@ -394,6 +485,10 @@ class SecurityCheckInformation extends SecuritySolution implements SecurityFailu
       System.out.println("Extending privileges at:");
       doPrivileged.forEach(f -> System.out.println("    " + f));
     }
+  }
+
+  @SuppressWarnings("squid:S106" /* this is a console application */)
+  private void dumpContext() {
     System.out.println("Context:");
     System.out.println("     " + StackFrameInformation.BUNDLE0);
     for (int i = 0; i < domains.size(); i++) {
@@ -405,16 +500,142 @@ class SecurityCheckInformation extends SecuritySolution implements SecurityFailu
               + (privilegedDomains.contains(domain) ? "" : "*")
               + domain);
     }
+  }
+
+  @SuppressWarnings("squid:S106" /* this is a console application */)
+  private void dumpStack() {
     System.out.println("Stack:");
     for (int i = 0; i < stack.size(); i++) {
       System.out.println(
           " "
               + ((i == failedStackIndex) ? "-->" : "   ")
               + " at "
+              + (isAcceptable() && acceptablePattern.wasMatched(i) ? "#" : "")
               + stack.get(i).toString(privilegedDomains));
       if ((privilegedStackIndex != -1) && (i == privilegedStackIndex)) {
         System.out.println("    ----------------------------------------------------------");
       }
+    }
+  }
+
+  @SuppressWarnings("squid:S106" /* this is a console application */)
+  private void dump0() {
+    dumpPermission();
+    dumpHowToFix();
+    dumpContext();
+    dumpStack();
+  }
+
+  @SuppressWarnings({
+    "squid:S00117", /* name is clearer that way */
+    "squid:S106" /* this is a console application */
+  })
+  private void dumpTroubleshootingInfo(int local_i) {
+    System.err.println(SecurityCheckInformation.DOUBLE_LINES);
+    System.err.println("AN ERROR OCCURRED WHILE ATTEMPTING TO FIND THE BUNDLE NAME FOR A DOMAIN");
+    System.err.println("PLEASE REPORT AN ISSUE WITH THE FOLLOWING INFORMATION AND INSTRUCTIONS");
+    System.err.println("ON HOW TO REPRODUCE IT");
+    System.err.println(SecurityCheckInformation.DOUBLE_LINES);
+    System.err.println("CURRENT DOMAIN CLASS: " + currentDomain.type().name());
+    System.err.println("CURRENT DOMAIN: " + currentDomain);
+    System.err.println("LOCAL 'i' VARIABLE: " + local_i);
+    System.err.println("STACK:");
+    for (int i = 0; i < stack.size(); i++) {
+      System.err.println("  at " + stack.get(i));
+      if ((privilegedStackIndex != -1) && (i == privilegedStackIndex)) {
+        System.out.println("    ----------------------------------------------------------");
+      }
+    }
+    System.err.println(SecurityCheckInformation.DOUBLE_LINES);
+  }
+
+  /** Pattern class for matching specific permission and stack information. */
+  private static class Pattern {
+    private final java.util.regex.Pattern permissionPattern;
+    private final List<java.util.regex.Pattern> stackPatterns;
+    private final List<Integer> stackIndexes;
+
+    private Pattern(String permissionPattern) {
+      this.permissionPattern = java.util.regex.Pattern.compile(permissionPattern);
+      this.stackPatterns = new ArrayList<>(8);
+      this.stackIndexes = null;
+    }
+
+    public Pattern(Pattern pattern) {
+      this.permissionPattern = pattern.permissionPattern;
+      this.stackPatterns = new ArrayList<>(pattern.stackPatterns);
+      this.stackIndexes = new ArrayList<>(stackPatterns.size());
+    }
+
+    private void addStack(String stackPattern) {
+      stackPatterns.add(java.util.regex.Pattern.compile(stackPattern));
+    }
+
+    @SuppressWarnings("squid:S00112" /* Forced to by the Java debugger API */)
+    private void validate() {
+      if (stackPatterns.isEmpty()) {
+        throw new Error(
+            "missing stack frame information for [" + permissionPattern.pattern() + "]");
+      }
+    }
+
+    public String getPermissionInfos() {
+      return permissionPattern.pattern();
+    }
+
+    public boolean matchAllPermissions(Set<String> permissionInfos) {
+      return permissionInfos.stream().map(permissionPattern::matcher).allMatch(Matcher::matches);
+    }
+
+    public boolean matchLocations(int index, String location) {
+      if (!stackPatterns.isEmpty() && stackPatterns.get(0).matcher(location).matches()) {
+        stackPatterns.remove(0);
+        stackIndexes.add(index);
+        return true;
+      }
+      return false;
+    }
+
+    public boolean wasAllMatched() {
+      return stackPatterns.isEmpty();
+    }
+
+    public boolean wasMatched(int index) {
+      return stackIndexes.contains(index);
+    }
+  }
+
+  /** Line processors for returning a list of patterns while trimming and ignoring comment lines. */
+  private static class PatternProcessor implements LineProcessor<List<Pattern>> {
+    private final List<Pattern> result = new ArrayList<>();
+    private Pattern current = null;
+
+    @Override
+    public boolean processLine(String line) throws IOException {
+      final String trimmed = line.trim();
+
+      if (trimmed.startsWith("#")) { // nothing to do, just skip that line and continues
+      } else if (trimmed.isEmpty()) {
+        if (current != null) {
+          current.validate();
+          this.current = null;
+        }
+      } else if (current == null) {
+        this.current = new Pattern(trimmed);
+        result.add(current);
+      } else {
+        current.addStack(trimmed);
+      }
+      return true;
+    }
+
+    @Override
+    public List<Pattern> getResult() {
+      if (current != null) {
+        current.validate();
+        this.current = null;
+      }
+      return Collections.unmodifiableList(result);
     }
   }
 }

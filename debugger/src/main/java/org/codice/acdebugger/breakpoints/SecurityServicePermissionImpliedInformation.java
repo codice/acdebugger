@@ -18,8 +18,10 @@ import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
+import javax.annotation.Nullable;
 import org.codice.acdebugger.api.SecurityFailure;
 import org.codice.acdebugger.api.SecuritySolution;
+import org.codice.acdebugger.api.StackFrameInformation;
 
 /**
  * This class serves 2 purposes. It is first a representation of a detected security service access
@@ -39,6 +41,22 @@ class SecurityServicePermissionImpliedInformation extends SecuritySolution
   SecurityServicePermissionImpliedInformation(String bundle, Set<String> permissionInfos) {
     super(permissionInfos, Collections.singleton(bundle), Collections.emptyList());
     this.bundle = bundle;
+  }
+
+  @Override
+  public List<StackFrameInformation> getStack() {
+    return Collections.emptyList();
+  }
+
+  @Override
+  public boolean isAcceptable() {
+    return false; // never acceptable
+  }
+
+  @Nullable
+  @Override
+  public String getAcceptablePermissions() {
+    return null; // never acceptable
   }
 
   @Override

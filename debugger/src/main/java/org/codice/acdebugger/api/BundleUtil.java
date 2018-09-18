@@ -98,6 +98,8 @@ public class BundleUtil {
     "squid:S3776", /* Recursive logic and simple enough to not warrant decomposing more */
   })
   private String get0(@Nullable Object obj) {
+    // NOTE: The logic here should be kept in sync with the logic in
+    // org.codice.acdebugger.backdoor.Backdoor
     if (obj == null) {
       return null;
     }
@@ -143,7 +145,18 @@ public class BundleUtil {
                               "()Lorg/eclipse/osgi/internal/loader/BundleLoader;"),
                       "getWiring",
                       "()Lorg/eclipse/osgi/container/ModuleWiring;"));
-    }
+    } else if (debug.reflection().isAssignableFrom("Ljava/security/ProtectionDomain;", type)) {
+      // check if we have a protection domain with Eclipse's permissions
+      final ObjectReference permissions =
+          invokeAndReturnNullIfNotFound(
+              ref, "getPermissions", "()Ljava/security/PermissionCollection;");
+
+      if (debug
+          .reflection()
+          .isInstance("Lorg/eclipse/osgi/internal/permadmin/BundlePermissions;", permissions)) {
+        bundle = get0(permissions);
+      }
+    } // no else here
     if (bundle == null) { // check if we have a getBundle() method
       // useful for org.eclipse.osgi.internal.loader.ModuleClassLoader$GenerationProtectionDomain,
       // org.eclipse.osgi.container.ModuleWiring

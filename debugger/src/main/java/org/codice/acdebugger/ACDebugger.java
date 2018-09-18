@@ -1,3 +1,16 @@
+/**
+ * Copyright (c) Codice Foundation
+ *
+ * <p>This is free software: you can redistribute it and/or modify it under the terms of the GNU
+ * Lesser General Public License as published by the Free Software Foundation, either version 3 of
+ * the License, or any later version.
+ *
+ * <p>This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY;
+ * without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+ * GNU Lesser General Public License for more details. A copy of the GNU Lesser General Public
+ * License is distributed along with this program and can be found at
+ * <http://www.gnu.org/licenses/lgpl.html>.
+ */
 package org.codice.acdebugger;
 
 import static java.util.concurrent.TimeUnit.SECONDS;
@@ -75,37 +88,38 @@ public class ACDebugger implements Callable<Void> {
     description =
         "Specifies the transport to use when connecting to the VM. (default: ${DEFAULT-VALUE})"
   )
-  String transport = "dt_socket";
+  private String transport = "dt_socket";
 
   @Option(
     names = {"-H", "--host"},
     description =
         "Specifies the host or IP where the VM to attach to is located. (default: ${DEFAULT-VALUE})"
   )
-  String host = "localhost";
+  private String host = "localhost";
 
   @Option(
     names = {"-p", "--port"},
     description =
         "Specifies the port number the VM is awaiting debuggers to connect to. (default:${DEFAULT-VALUE})"
   )
-  String port = "5005";
+  private String port = "5005";
 
   @Option(
     names = {"-w", "--wait"},
     description =
         "Indicates to wait for a connection. To specify the timeout value use with the '--wait-timeout' option."
   )
-  boolean wait = false;
+  private boolean wait = false;
 
   @Option(
     names = {"--wait-timeout"},
     description =
         "Only applies when the '--wait' option is used. Sets the maximum number of minutes to wait. (default: ${DEFAULT-VALUE})"
   )
-  long timeout = 10;
+  private long timeout = 10;
 
   @Override
+  @SuppressWarnings("squid:S106" /* this is a console application */)
   public Void call() throws Exception {
 
     final long startTime = System.currentTimeMillis();

@@ -18,7 +18,6 @@ import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.security.AccessController;
 import java.security.Permission;
-import java.security.Permissions;
 import java.security.PrivilegedAction;
 import java.security.PrivilegedActionException;
 import java.security.PrivilegedExceptionAction;
@@ -284,7 +283,7 @@ public class Backdoor implements BundleActivator {
       return ((BundleContext) obj).getBundle().getSymbolicName();
     } else if (obj instanceof ProtectionDomain) {
       // check if we have a protection domain with Eclipse's permissions
-      final Object permissions = invoke(obj, "getPermissions", Permissions.class);
+      final Object permissions = ((ProtectionDomain) obj).getPermissions();
 
       if (permissions instanceof BundlePermissions) {
         bundle = getBundle0(permissions);

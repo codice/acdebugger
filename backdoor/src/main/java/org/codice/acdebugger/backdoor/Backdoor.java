@@ -18,6 +18,7 @@ import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.security.AccessController;
 import java.security.Permission;
+import java.security.PermissionCollection;
 import java.security.PrivilegedAction;
 import java.security.PrivilegedActionException;
 import java.security.PrivilegedExceptionAction;
@@ -25,6 +26,7 @@ import java.security.ProtectionDomain;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
@@ -34,7 +36,6 @@ import javax.annotation.Nullable;
 import org.codice.acdebugger.PermissionService;
 import org.codice.acdebugger.common.JsonUtils;
 import org.codice.acdebugger.common.ServicePermissionInfo;
-import org.eclipse.osgi.internal.permadmin.BundlePermissions;
 import org.osgi.framework.Bundle;
 import org.osgi.framework.BundleActivator;
 import org.osgi.framework.BundleContext;
@@ -68,6 +69,7 @@ public class Backdoor implements BundleActivator {
 
   @Override
   public void stop(BundleContext bundleContext) {
+    Backdoor.instance = null;
     permServiceTracker.close();
   }
 
@@ -283,9 +285,15 @@ public class Backdoor implements BundleActivator {
       return ((BundleContext) obj).getBundle().getSymbolicName();
     } else if (obj instanceof ProtectionDomain) {
       // check if we have a protection domain with Eclipse's permissions
-      final Object permissions = ((ProtectionDomain) obj).getPermissions();
+      final PermissionCollection permissions = ((ProtectionDomain) obj).getPermissions();
 
-      if (permissions instanceof BundlePermissions) {
+      // we cannot reference org.eclipse.osgi.internal.permadmin.BundlePermissions directly as it is
+      // not exported by Eclipse
+      if ((permissions != null)
+          && permissions
+              .getClass()
+              .getName()
+              .equals("org.eclipse.osgi.internal.permadmin.BundlePermissions")) {
         bundle = getBundle0(permissions);
       }
     } // no else here
@@ -425,9 +433,6 @@ public class Backdoor implements BundleActivator {
   }
 
   private Object getContainerThis(Object obj) {
-    if (obj == null) {
-      return null;
-    }
     // reverse order to get this$2 before this$1 and this$0
     final Map<String, Field> fields = new TreeMap<>(Comparator.reverseOrder());
 
@@ -467,7 +472,7 @@ public class Backdoor implements BundleActivator {
                   n ->
                       getPermissionString(
                           permission.getClass().getName(), n, permission.getActions()))
-              .collect(Collectors.toSet());
+              .collect(Collectors.toCollection(LinkedHashSet::new));
         }
       } catch (VirtualMachineError e) {
         throw e;

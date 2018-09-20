@@ -44,7 +44,6 @@
         <maven.compiler.source>1.8</maven.compiler.source>
         <maven.compiler.target>1.8</maven.compiler.target>
 
-        <maven-jacoco-plugin.version>0.8.1</maven-jacoco-plugin.version>
 
         <guava.version>23.0</guava.version>
         <boon.version>0.34</boon.version>
@@ -56,6 +55,17 @@
 
         <junit.version>4.12</junit.version>
         <groovy.version>2.4.7</groovy.version>
+
+        <!-- Gitflow Incremental Builder Properties -->
+        <gib.referenceBranch>refs/remotes/origin/master</gib.referenceBranch>
+        <gib.baseBranch>HEAD</gib.baseBranch>
+        <gib.enabled>false</gib.enabled>
+        <gib.failOnError>false</gib.failOnError>
+
+        <!-- Maven Plugin Version Properties -->
+        <directory-maven-plugin.version>0.3.1</directory-maven-plugin.version>
+        <dependency-check-maven.version>3.1.1</dependency-check-maven.version>
+        <maven-jacoco-plugin.version>0.8.1</maven-jacoco-plugin.version>
     </properties>
 
     <scm>
@@ -155,6 +165,13 @@
     </dependencyManagement>
 
     <build>
+        <extensions>
+            <extension>
+                <groupId>com.vackosar.gitflowincrementalbuilder</groupId>
+                <artifactId>gitflow-incremental-builder</artifactId>
+                <version>3.4</version>
+            </extension>
+        </extensions>
         <pluginManagement>
             <plugins>
                 <plugin>
@@ -194,6 +211,51 @@
                     </executions>
                 </plugin>
                 <plugin>
+                    <groupId>org.owasp</groupId>
+                    <artifactId>dependency-check-maven</artifactId>
+                    <version>${dependency-check-maven.version}</version>
+                    <configuration>
+                        <!-- The following properties enable using a mirror for nist NVD data -->
+                        <cveUrl12Modified>${owasp.cveUrl12Modified}</cveUrl12Modified>
+                        <cveUrl20Modified>${owasp.cveUrl20Modified}</cveUrl20Modified>
+                        <cveUrl12Base>${owasp.cveUrl12Base}</cveUrl12Base>
+                        <cveUrl20Base>${owasp.cveUrl20Base}</cveUrl20Base>
+                        <!-- End NVD mirror configuration -->
+                        <failBuildOnCVSS>2</failBuildOnCVSS>
+                        <skipTestScope>true</skipTestScope>
+                        <!--Disable by plugin maintainer recommendation on https://github.com/jeremylong/DependencyCheck/issues/978#issuecomment-349620687-->
+                        <centralAnalyzerEnabled>false</centralAnalyzerEnabled>
+                        <!--Disable because we have a separate NSP analysis step and this plugin has no way to suppress NSP issues as of 3.0.2-->
+                        <nspAnalyzerEnabled>false</nspAnalyzerEnabled>
+                        <!--Disable .NET analyzers-->
+                        <nuspecAnalyzerEnabled>false</nuspecAnalyzerEnabled>
+                        <assemblyAnalyzerEnabled>false</assemblyAnalyzerEnabled>
+                        <!--Analyzes Ruby Gemfile.lock files, not OSGi bundles-->
+                        <bundleAuditAnalyzerEnabled>false</bundleAuditAnalyzerEnabled>
+                        <!--We don't use CMake, CocoaPods, AutoConf, or Ruby-->
+                        <cmakeAnalyzerEnabled>false</cmakeAnalyzerEnabled>
+                        <cocoapodsAnalyzerEnabled>false</cocoapodsAnalyzerEnabled>
+                        <autoconfAnalyzerEnabled>false</autoconfAnalyzerEnabled>
+                        <rubygemsAnalyzerEnabled>false</rubygemsAnalyzerEnabled>
+                        <nodeAnalyzerEnabled>false</nodeAnalyzerEnabled>
+                        <!--Always include root-level suppression file-->
+                        <suppressionFiles>
+                            <suppressionFile>
+                                <!--IDE can show variable as undefined because a plugin dynamically creates the property-->
+                                ${highest-basedir}/dependency-check-maven-config.xml
+                            </suppressionFile>
+                        </suppressionFiles>
+                    </configuration>
+                    <executions>
+                        <execution>
+                            <phase>package</phase>
+                            <goals>
+                                <goal>check</goal>
+                            </goals>
+                        </execution>
+                    </executions>
+                </plugin>
+                <plugin>
                     <groupId>org.apache.maven.plugins</groupId>
                     <artifactId>maven-surefire-plugin</artifactId>
                     <version>2.20.1</version>
@@ -209,6 +271,23 @@
         </pluginManagement>
 
         <plugins>
+            <plugin>
+                <groupId>org.commonjava.maven.plugins</groupId>
+                <artifactId>directory-maven-plugin</artifactId>
+                <version>${directory-maven-plugin.version}</version>
+                <executions>
+                    <execution>
+                        <id>directories</id>
+                        <goals>
+                            <goal>highest-basedir</goal>
+                        </goals>
+                        <phase>initialize</phase>
+                        <configuration>
+                            <property>highest-basedir</property>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
             <plugin>
                 <groupId>com.coveo</groupId>
                 <artifactId>fmt-maven-plugin</artifactId>
@@ -293,6 +372,21 @@
                     <systemPath>${java.home}/../lib/tools.jar</systemPath>
                 </dependency>
             </dependencies>
+        </profile>
+        <profile>
+            <id>owasp</id>
+            <activation>
+                <activeByDefault>false</activeByDefault>
+            </activation>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>org.owasp</groupId>
+                        <artifactId>dependency-check-maven</artifactId>
+                        <version>${dependency-check-maven.version}</version>
+                    </plugin>
+                </plugins>
+            </build>
         </profile>
     </profiles>
 

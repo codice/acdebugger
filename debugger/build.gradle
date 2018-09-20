@@ -1,0 +1,8 @@
+
+description = 'AC Debugger :: Debugger'
+dependencies {
+  compile project(':acdebugger-common')
+    compile "com.google.guava:guava:${guava_version}"
+    compile "info.picocli:picocli:${picocli_version}"
+    compile "org.awaitility:awaitility:${awaitility_version}"
+}

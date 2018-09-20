@@ -1,0 +1,5 @@
+description = 'AC Debugger :: Common'
+dependencies {
+    compile "io.fastjson:boon:${boon_version}"
+    compileOnly "org.apache.servicemix.bundles:org.apache.servicemix.bundles.jsr305:${jsr305_version}"
+}

@@ -1,0 +1,13 @@
+apply plugin: 'biz.aQute.bnd.builder'
+
+description = 'AC Debugger :: API'
+
+jar {
+  manifest {
+    attributes('Export-Package': 'org.codice.acdebugger',
+               'Bundle-Vendor': 'Codice',
+               'Bundle-Category': 'osgi',
+               'Bundle-SymbolicName': project.name)
+  }
+}
+

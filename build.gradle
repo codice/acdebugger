@@ -1,0 +1,106 @@
+buildscript {
+  repositories {
+    mavenCentral()
+  }
+  dependencies {
+    classpath 'biz.aQute.bnd:biz.aQute.bnd.gradle:4.0.0'
+  }
+}
+
+plugins {
+  id "com.diffplug.gradle.spotless" version "3.14.0"
+}
+
+ext {
+  osgi_version = "5.0.0"
+  boon_version = "0.34"
+  guava_version = "23.0"
+  jsr305_version = "3.0.2_1"
+  picocli_version = "3.5.2"
+  awaitility_version = "3.1.2"
+}
+
+allprojects  {
+  apply plugin: 'maven'
+
+  group = 'org.codice.acdebugger'
+  version = '1.3-SNAPSHOT'
+}
+
+subprojects {
+  apply plugin: 'java'
+  apply plugin: 'com.diffplug.gradle.spotless'
+  sourceCompatibility = 1.8
+  targetCompatibility = 1.8
+
+  repositories {
+    mavenLocal()
+    mavenCentral()
+  }
+
+  dependencies {
+    compileOnly files("${System.getProperty('java.home')}/../lib/tools.jar")
+  }
+
+  install {
+    repositories.mavenInstaller {
+      pom.project {
+        inceptionYear '2018'
+        organization {
+          name 'Codice Foundation'
+          url 'http://codice.org'
+        }
+        licenses {
+          license {
+            name 'GNU Lesser General Public v3'
+            url 'http://www.gnu.org/licenses/lgpl.html'
+            distribution 'repo'
+          }
+        }
+        scm {
+          url 'https://github.com/codice/acdebugger'
+          connection 'scm:git:https://github.com/codice/acdebugger.git'
+          developerConnection 'scm:git:https://github.com/codice/acdebugger.git'
+        }
+      }
+    }
+  }
+  
+  uploadArchives {
+    repositories {
+      mavenDeployer{
+        snapshotRepository(url: 'http://artifacts.codice.org/content/repositories/snapshots/')
+        repository(url: 'http://artifacts.codice.org/content/repositories/releases/')
+        pom.project {
+          inceptionYear '2018'
+          organization {
+            name 'Codice Foundation'
+            url 'http://codice.org'
+          }
+          licenses {
+            license {
+              name 'GNU Lesser General Public v3'
+              url 'http://www.gnu.org/licenses/lgpl.html'
+              distribution 'repo'
+            }
+          }
+          scm {
+            url 'https://github.com/codice/acdebugger'
+            connection 'scm:git:https://github.com/codice/acdebugger.git'
+            developerConnection 'scm:git:https://github.com/codice/acdebugger.git'
+          }
+        }
+      }
+    }
+  }
+
+  spotless {
+    java {
+      trimTrailingWhitespace()
+      googleJavaFormat()
+    }
+  }
+  
+}
+
+

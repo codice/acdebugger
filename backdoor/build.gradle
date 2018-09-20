@@ -1,0 +1,23 @@
+apply plugin: 'biz.aQute.bnd.builder'
+
+description = 'AC Debugger :: Backdoor'
+dependencies {
+  compile project(':acdebugger-api')
+  compile project(':acdebugger-common')
+    compile "org.osgi:org.osgi.core:${osgi_version}"
+    compile "io.fastjson:boon:${boon_version}"
+    compile "com.google.guava:guava:${guava_version}"
+    compileOnly "org.apache.servicemix.bundles:org.apache.servicemix.bundles.jsr305:${jsr305_version}"
+}
+
+jar {
+  manifest {
+    attributes("Bundle-Category": "osgi",
+               "Bundle-SymbolicName": project.name,
+               "Bundle-Vendor": "Codice",
+               "Bundle-Activator": "org.codice.acdebugger.backdoor.Backdoor",
+               "Embed-Dependency": "acdebugger-common, boon",
+               "Import-Package": "com.sun.management;resolution:=optional, sun.misc;resolution:=optional, *",
+               "Require-Capability": 'osgi.service;filter:="(objectClass=org.codice.acdebugger.PermissionService)";effective:=active;resolution:=optional')
+  }
+}

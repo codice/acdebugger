@@ -1,0 +1,10 @@
+rootProject.name = 'acdebugger'
+include 'acdebugger-api'
+include 'acdebugger-common'
+include 'acdebugger-debugger'
+include 'acdebugger-backdoor'
+
+project(':acdebugger-api').projectDir = "$rootDir/api" as File
+project(':acdebugger-common').projectDir = "$rootDir/common" as File
+project(':acdebugger-debugger').projectDir = "$rootDir/debugger" as File
+project(':acdebugger-backdoor').projectDir = "$rootDir/backdoor" as File

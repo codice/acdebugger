@@ -12,14 +12,12 @@
  *
  **/
 -->
-<project xmlns="http://maven.apache.org/POM/4.0.0"
-         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
 
     <groupId>org.codice.acdebugger</groupId>
     <artifactId>acdebugger</artifactId>
-    <version>1.3-SNAPSHOT</version>
+    <version>1.3</version>
     <packaging>pom</packaging>
     <name>AC Debugger</name>
     <description>Access Control Debugger Parent</description>
@@ -39,9 +37,9 @@
 
     <properties>
         <!--  default URL properties -->
-        <codice.scm.connection.url/>
-        <snapshots.repository.url/>
-        <reports.repository.url/>
+        <codice.scm.connection.url />
+        <snapshots.repository.url />
+        <reports.repository.url />
 
         <maven.compiler.source>1.8</maven.compiler.source>
         <maven.compiler.target>1.8</maven.compiler.target>
@@ -59,7 +57,7 @@
         <url>https://github.com/codice/acdebugger</url>
         <connection>scm:git:https://github.com/codice/acdebugger.git</connection>
         <developerConnection>scm:git:https://github.com/codice/acdebugger.git</developerConnection>
-        <tag>acdebugger-1.2</tag>
+        <tag>acdebugger-1.3</tag>
     </scm>
 
     <distributionManagement>

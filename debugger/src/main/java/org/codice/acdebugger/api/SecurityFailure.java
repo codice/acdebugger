@@ -15,6 +15,7 @@ package org.codice.acdebugger.api;
 
 import java.util.List;
 import java.util.Set;
+import javax.annotation.Nullable;
 
 /** Represents a security failure detected in the attached VM. */
 public interface SecurityFailure {
@@ -24,6 +25,32 @@ public interface SecurityFailure {
    * @return the permissions associated with this security failure
    */
   public Set<String> getPermissions();
+
+  /**
+   * Gets the stack information for this security failure.
+   *
+   * @return the stack information for this security failure
+   */
+  public List<StackFrameInformation> getStack();
+
+  /**
+   * Gets the matched permissions associated with this security failure if it was found to be an
+   * acceptable failure.
+   *
+   * @return the matched permission information if this is an acceptable security failure; otherwise
+   *     <code>null</code>
+   */
+  @Nullable
+  public String getAcceptablePermissions();
+
+  /**
+   * Checks if this failure is an acceptable one for which we shouldn't grant the missing
+   * permissions and simply let the security check fail.
+   *
+   * @return <code>true</code> if this is an acceptable security failure; <code>false</code>
+   *     otherwise
+   */
+  public boolean isAcceptable();
 
   /**
    * Analyze this security failure in order to find solutions.

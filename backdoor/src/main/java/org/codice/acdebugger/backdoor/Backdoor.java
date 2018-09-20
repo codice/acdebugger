@@ -34,6 +34,7 @@ import javax.annotation.Nullable;
 import org.codice.acdebugger.PermissionService;
 import org.codice.acdebugger.common.JsonUtils;
 import org.codice.acdebugger.common.ServicePermissionInfo;
+import org.eclipse.osgi.internal.permadmin.BundlePermissions;
 import org.osgi.framework.Bundle;
 import org.osgi.framework.BundleActivator;
 import org.osgi.framework.BundleContext;
@@ -262,7 +263,14 @@ public class Backdoor implements BundleActivator {
    * @return the name/location of the corresponding bundle or <code>null</code> if unable to find it
    */
   @Nullable
+  @SuppressWarnings({
+    "squid:S3776", /* Recursive logic and simple enough to not warrant decomposing more */
+  })
   private String getBundle0(@Nullable Object obj) {
+    // NOTE: The logic here should be kept in sync with the logic in
+    // org.codice.acdebugger.api.BundleUtil
+    String bundle = null;
+
     if (obj == null) {
       return null;
     } else if (obj instanceof Bundle) {
@@ -273,10 +281,17 @@ public class Backdoor implements BundleActivator {
       return ((BundleWiring) obj).getBundle().getSymbolicName();
     } else if (obj instanceof BundleContext) {
       return ((BundleContext) obj).getBundle().getSymbolicName();
-    }
-    // see if it has a getBundle() method
-    String bundle = getBundle0(invoke(obj, "getBundle", Bundle.class));
+    } else if (obj instanceof ProtectionDomain) {
+      // check if we have a protection domain with Eclipse's permissions
+      final Object permissions = ((ProtectionDomain) obj).getPermissions();
 
+      if (permissions instanceof BundlePermissions) {
+        bundle = getBundle0(permissions);
+      }
+    } // no else here
+    if (bundle == null) { // check if it has a getBundle() method
+      bundle = getBundle0(invoke(obj, "getBundle", Bundle.class));
+    }
     if (bundle == null) { // check if we have a getBundleContext() method
       bundle = getBundle0(invoke(obj, "getBundleContext", BundleContext.class));
     }

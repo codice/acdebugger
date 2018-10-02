@@ -13,6 +13,7 @@
  */
 package org.codice.acdebugger.backdoor;
 
+import java.io.FilePermission;
 import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
@@ -35,6 +36,7 @@ import java.util.stream.Stream;
 import javax.annotation.Nullable;
 import org.codice.acdebugger.PermissionService;
 import org.codice.acdebugger.common.JsonUtils;
+import org.codice.acdebugger.common.PermissionUtil;
 import org.codice.acdebugger.common.ServicePermissionInfo;
 import org.osgi.framework.Bundle;
 import org.osgi.framework.BundleActivator;
@@ -67,6 +69,9 @@ public class Backdoor implements BundleActivator {
     Backdoor.instance = this;
   }
 
+  @SuppressWarnings({
+    "squid:S2696" /* singleton instance cleared when stopped so AC debugger can easily find it */
+  })
   @Override
   public void stop(BundleContext bundleContext) {
     Backdoor.instance = null;
@@ -267,6 +272,7 @@ public class Backdoor implements BundleActivator {
   @Nullable
   @SuppressWarnings({
     "squid:S3776", /* Recursive logic and simple enough to not warrant decomposing more */
+    "squid:S1872" /* cannot use instanceof as the class is not exported */
   })
   private String getBundle0(@Nullable Object obj) {
     // NOTE: The logic here should be kept in sync with the logic in
@@ -355,12 +361,11 @@ public class Backdoor implements BundleActivator {
       final Set<String> implied = new HashSet<>(12);
 
       if (domain.implies(new ServicePermission("*", ServicePermission.GET))) {
-        implied.add(
-            getPermissionString(ServicePermission.class.getName(), "*", ServicePermission.GET));
+        implied.add(getPermissionString(ServicePermission.class, "*", ServicePermission.GET));
       }
       for (final String c : objectClass) {
         final String permissionString =
-            getPermissionString(ServicePermission.class.getName(), c, ServicePermission.GET);
+            getPermissionString(ServicePermission.class, c, ServicePermission.GET);
 
         if (domain.implies(new ServicePermission(c, ServicePermission.GET))) {
           implied.add(permissionString);
@@ -468,10 +473,7 @@ public class Backdoor implements BundleActivator {
 
         if (objectClass != null) {
           return Stream.of(objectClass)
-              .map(
-                  n ->
-                      getPermissionString(
-                          permission.getClass().getName(), n, permission.getActions()))
+              .map(n -> getPermissionString(permission.getClass(), n, permission.getActions()))
               .collect(Collectors.toCollection(LinkedHashSet::new));
         }
       } catch (VirtualMachineError e) {
@@ -480,20 +482,19 @@ public class Backdoor implements BundleActivator {
       }
     }
     return Collections.singleton(
-        getPermissionString(
-            permission.getClass().getName(), permission.getName(), permission.getActions()));
+        getPermissionString(permission.getClass(), permission.getName(), permission.getActions()));
   }
 
-  private String getPermissionString(String clazz, String name, String actions) {
-    final StringBuilder sb = new StringBuilder();
+  private String getPermissionString(
+      Class<? extends Permission> clazz, String name, String actions) {
+    if (FilePermission.class.isAssignableFrom(clazz)) {
+      // special case to take advantage of the special slash system property if defined
+      final String slash = System.getProperty("/");
 
-    sb.append(clazz);
-    sb.append(" \"");
-    sb.append(name);
-    if ((actions != null) && !actions.isEmpty()) {
-      sb.append("\", \"").append(actions);
+      if ((slash != null) && !slash.isEmpty()) {
+        name = name.replace(slash, "${/}");
+      }
     }
-    sb.append("\"");
-    return sb.toString();
+    return PermissionUtil.getPermissionString(clazz, name, actions);
   }
 }

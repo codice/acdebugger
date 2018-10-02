@@ -9,4 +9,5 @@ org.ops4j
 org.osgi
 org.springframework
 org.knopflerfish
+org.jline
 com.fasterxml

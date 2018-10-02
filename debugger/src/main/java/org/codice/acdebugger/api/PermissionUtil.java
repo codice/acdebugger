@@ -242,12 +242,15 @@ public class PermissionUtil {
 
       if (objectClass != null) {
         return Stream.of(objectClass)
-            .map(n -> getPermissionString(obj.name(), n, actions))
+            .map(
+                n ->
+                    org.codice.acdebugger.common.PermissionUtil.getPermissionString(
+                        obj.name(), n, actions))
             .collect(Collectors.toSet());
       }
     }
     return Collections.singleton(
-        getPermissionString(
+        org.codice.acdebugger.common.PermissionUtil.getPermissionString(
             obj.name(),
             debug
                 .reflection()
@@ -370,18 +373,5 @@ public class PermissionUtil {
       } // else - already cached so the bundle either has the permission or we already detected it
     } // else - the bundle has all service "*" permissions
     return Collections.emptySet();
-  }
-
-  private String getPermissionString(String clazz, String name, @Nullable String actions) {
-    final StringBuilder sb = new StringBuilder();
-
-    sb.append(clazz);
-    sb.append(" \"");
-    sb.append(name);
-    if ((actions != null) && !actions.isEmpty()) {
-      sb.append("\", \"").append(actions);
-    }
-    sb.append("\"");
-    return sb.toString();
   }
 }

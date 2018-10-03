@@ -2,12 +2,15 @@
 # where we are shouldn't provide solutions that consists in extending privileges using
 # doPrivileged() blocks.
 
+com.fasterxml
+javax.servlet
+javax.servlet-api
 org.apache
+org.boon
 org.eclipse
+org.jline
 org.jolokia
+org.knopflerfish
 org.ops4j
 org.osgi
 org.springframework
-org.knopflerfish
-org.jline
-com.fasterxml

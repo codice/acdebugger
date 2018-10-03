@@ -170,6 +170,17 @@ public class StackFrameInformation implements Comparable<StackFrameInformation> 
   }
 
   /**
+   * Checks if this location corresponds to a code known to perform a <code>doPrivileged()</code>
+   * block in the code on behalf of its caller by re-arranging the access control context.
+   *
+   * @return <code>true</code> if this location corresponds to a <code>doPrivileged()</code> block;
+   *     <code>false</code> if not
+   */
+  public boolean isCallingDoPrivilegedBlockOnBehalfOf() {
+    return ((bundle == null) && location.equals("javax.security.auth.Subject:422"));
+  }
+
+  /**
    * Checks if this location has permissions based on the specified set of privileged bundles.
    *
    * @param privilegedBundles the set of privileged bundles to checked against

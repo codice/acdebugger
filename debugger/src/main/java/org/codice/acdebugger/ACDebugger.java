@@ -13,10 +13,8 @@
  */
 package org.codice.acdebugger;
 
-import static java.util.concurrent.TimeUnit.SECONDS;
-import static org.awaitility.Awaitility.await;
-
 import java.net.ConnectException;
+import java.util.Date;
 import java.util.concurrent.Callable;
 import java.util.concurrent.TimeUnit;
 import org.codice.acdebugger.breakpoints.AccessControlContextCheckBreakpointProcessor;
@@ -48,7 +46,7 @@ public class ACDebugger implements Callable<Void> {
     names = {"-c", "--continuous"},
     description =
         "Specifies to run in continuous mode where the debugger will tell the VM not to fail on any security"
-            + " failures detected and report on all failures found."
+            + " failures detected (unless --fail is specified) and report on all failures found."
   )
   private boolean continuous = false;
 
@@ -70,6 +68,13 @@ public class ACDebugger implements Callable<Void> {
             + "It also tends to slow down the system since the OSGi permission cache ends up being cleared each time."
   )
   private boolean granting = false;
+
+  @Option(
+    names = {"-f", "--fail"},
+    description =
+        "When specified, the debugger will let security failures detected fail normally after reporting on all of them."
+  )
+  private boolean failing = false;
 
   @Option(
     names = {"-s", "--service"},
@@ -117,40 +122,54 @@ public class ACDebugger implements Callable<Void> {
   )
   private long timeout = 10;
 
+  @Option(
+    names = {"-r", "--reconnect"},
+    description =
+        "Indicates to attempt to reconnect automatically after the attached VM has disconnected."
+  )
+  private boolean reconnect = false;
+
   @Override
   @SuppressWarnings("squid:S106" /* this is a console application */)
   public Void call() throws Exception {
+    while (true) {
+      final long endTime = System.currentTimeMillis() + TimeUnit.MINUTES.toMillis(timeout);
+      Debugger debugger = null;
 
-    final long startTime = System.currentTimeMillis();
-    Debugger debugger = null;
-
-    // attach to VM
-    while (debugger == null) {
-      try {
-        debugger = new Debugger(transport, host, port).attach();
-      } catch (ConnectException e) {
-        System.err.println("Unable to connect to " + host + ":" + port + " over " + transport);
-        if (!wait
-            || (System.currentTimeMillis() > startTime + TimeUnit.MINUTES.toMillis(timeout))) {
-          System.exit(1);
-        } else {
-          await().atMost(30, SECONDS);
+      // attach to VM
+      System.out.println("AC Debugger: " + new Date());
+      System.out.println("AC Debugger: Attaching to " + host + ":" + port + " ...");
+      while (debugger == null) {
+        try {
+          debugger = new Debugger(transport, host, port).attach();
+        } catch (ConnectException e) {
+          if (!wait || (System.currentTimeMillis() > endTime)) {
+            System.err.println("Unable to connect to " + host + ":" + port + " over " + transport);
+            System.exit(1);
+          } else {
+            Thread.sleep(5000L);
+          }
         }
       }
+      // configure options
+      debugger.setContinuous(continuous);
+      debugger.setDebug(debug);
+      debugger.setGranting(granting);
+      debugger.setFailing(failing);
+      debugger.setMonitoringService(service);
+      debugger.setDoPrivilegedBlocks(!admin);
+
+      // registering breakpoints
+      debugger.add(new BackdoorProcessor());
+      debugger.add(new AccessControlContextCheckBreakpointProcessor());
+      // debugger.add(new ImpliesBreakpointProcessor()); // This slows the system to a crawl :-(
+
+      debugger.loop();
+
+      if (!reconnect) {
+        return null;
+      }
+      System.out.println();
     }
-    // configure options
-    debugger.setContinuous(continuous);
-    debugger.setDebug(debug);
-    debugger.setGranting(granting);
-    debugger.setMonitoringService(service);
-    debugger.setDoPrivilegedBlocks(!admin);
-
-    // registering breakpoints
-    debugger.add(new BackdoorProcessor());
-    debugger.add(new AccessControlContextCheckBreakpointProcessor());
-    // debugger.add(new ImpliesBreakpointProcessor()); // This slows the system to a crawl :-(
-
-    debugger.loop();
-    return null;
   }
 }

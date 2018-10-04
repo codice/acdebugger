@@ -16,7 +16,7 @@ package org.codice.acdebugger.api;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
@@ -56,7 +56,7 @@ public class SecuritySolution implements Comparable<SecuritySolution> {
    */
   protected SecuritySolution(SecuritySolution solution) {
     this.permissionInfos = solution.permissionInfos;
-    this.grantedBundles = new HashSet<>(solution.grantedBundles);
+    this.grantedBundles = new LinkedHashSet<>(solution.grantedBundles);
     this.doPrivileged = new ArrayList<>(solution.doPrivileged);
   }
 

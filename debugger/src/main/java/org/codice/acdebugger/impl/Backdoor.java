@@ -31,9 +31,14 @@ import org.codice.acdebugger.common.ServicePermissionInfo;
 public class Backdoor {
   public static final String CLASS_SIGNATURE = "Lorg/codice/acdebugger/backdoor/Backdoor;";
 
+  private static final String METHOD_SIGNATURE_OBJ_ARG_STRING_RESULT =
+      "(Ljava/lang/Object;)Ljava/lang/String;";
+
   private ObjectReference backdoorReference;
 
   private Method getBundle;
+
+  private Method getBundleVersion;
 
   private Method getPermissionStrings;
 
@@ -68,14 +73,21 @@ public class Backdoor {
               .findMethod(
                   this.backdoorReference.referenceType(),
                   "getBundle",
-                  "(Ljava/lang/Object;)Ljava/lang/String;");
+                  Backdoor.METHOD_SIGNATURE_OBJ_ARG_STRING_RESULT);
+      this.getBundleVersion =
+          debug
+              .reflection()
+              .findMethod(
+                  this.backdoorReference.referenceType(),
+                  "getBundleVersion",
+                  Backdoor.METHOD_SIGNATURE_OBJ_ARG_STRING_RESULT);
       this.getPermissionStrings =
           debug
               .reflection()
               .findMethod(
                   this.backdoorReference.referenceType(),
                   "getPermissionStrings",
-                  "(Ljava/lang/Object;)Ljava/lang/String;");
+                  Backdoor.METHOD_SIGNATURE_OBJ_ARG_STRING_RESULT);
       this.grantPermission =
           debug
               .reflection()
@@ -145,7 +157,7 @@ public class Backdoor {
    * the corresponding bundle (in some case based on implementation details).
    *
    * @param debug the current debug information
-   * @param obj the object for which to find the corresponding bundle.
+   * @param obj the object for which to find the corresponding bundle
    * @return the name/location of the corresponding bundle or <code>null</code> if unable to find it
    * @throws IllegalStateException if the backdoor is initializing or doesn't support this method
    */
@@ -156,6 +168,25 @@ public class Backdoor {
       throw new IllegalStateException("getBundle() is not supported by the backdoor");
     }
     return debug.reflection().invoke(backdoorReference, getBundle, obj);
+  }
+
+  /**
+   * Gets a bundle version for the given object. The object can be a bundle, a protection domain, a
+   * bundle context, or even a classloader. This methods makes all attempts possible to figure out
+   * the corresponding bundle (in some case based on implementation details).
+   *
+   * @param debug the current debug information
+   * @param obj the object for which to find the corresponding bundle
+   * @return the version of the corresponding bundle or <code>null</code> if unable to find it
+   * @throws IllegalStateException if the backdoor is initializing or doesn't support this method
+   */
+  @Nullable
+  public synchronized String getBundleVersion(Debug debug, Object obj) {
+    findBackdoor(debug); // make sure the backdoor is enabled
+    if (getBundleVersion == null) {
+      throw new IllegalStateException("getBundleVersion() is not supported by the backdoor");
+    }
+    return debug.reflection().invoke(backdoorReference, getBundleVersion, obj);
   }
 
   /**

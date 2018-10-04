@@ -12,7 +12,9 @@
  *
  **/
 -->
-<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
 
     <groupId>org.codice.acdebugger</groupId>
@@ -50,7 +52,6 @@
         <osgi.version>5.0.0</osgi.version>
         <jsr305.version>3.0.2_1</jsr305.version>
         <picocli.version>3.5.2</picocli.version>
-        <awaitility.version>3.1.2</awaitility.version>
         <guava.version>20.0</guava.version>
 
         <junit.version>4.12</junit.version>
@@ -102,6 +103,11 @@
                 <scope>provided</scope>
             </dependency>
             <dependency>
+                <groupId>org.osgi</groupId>
+                <artifactId>org.osgi.core</artifactId>
+                <version>${osgi.version}</version>
+            </dependency>
+            <dependency>
                 <groupId>io.fastjson</groupId>
                 <artifactId>boon</artifactId>
                 <version>${boon.version}</version>
@@ -117,6 +123,11 @@
                 <groupId>com.google.guava</groupId>
                 <artifactId>guava</artifactId>
                 <version>${guava.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>info.picocli</groupId>
+                <artifactId>picocli</artifactId>
+                <version>${picocli.version}</version>
             </dependency>
 
             <dependency>

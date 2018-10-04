@@ -78,11 +78,11 @@ public class AccessControlContextCheckBreakpointProcessor implements BreakpointP
     //          bundle the missing permissions we use in the ctor to determine if bundles have
     //          permissions so even if the VM tells us there was an exception, we skip over it right
     //          away
-    if (debug.isContinuous() && !security.isAcceptable()) {
+    if (!debug.isFailing() && debug.isContinuous() && !security.isAcceptable()) {
       // force early return as if no exception is thrown, that way we simulate no security
       // exceptions; allowing us to record what is missing while continuing to run
       thread.forceEarlyReturn(debug.reflection().getVoid());
-    } // else - let it fail as intended since we aren't continuing or again it is an acceptable
-    //          failure
+    } // else - let it fail as intended since we failing or we aren't continuing or again it is
+    //          an acceptable failure
   }
 }

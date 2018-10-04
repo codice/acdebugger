@@ -12,7 +12,9 @@
  *
  **/
 -->
-<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
 
     <parent>
@@ -49,12 +51,6 @@
         <dependency>
             <groupId>info.picocli</groupId>
             <artifactId>picocli</artifactId>
-            <version>${picocli.version}</version>
-        </dependency>
-        <dependency>
-            <groupId>org.awaitility</groupId>
-            <artifactId>awaitility</artifactId>
-            <version>${awaitility.version}</version>
         </dependency>
     </dependencies>
 
@@ -75,7 +71,8 @@
                         <configuration>
                             <tasks>
                                 <echo message="unzipping tools.jar" />
-                                <unzip src="${java.home}/../lib/tools.jar" dest="${project.build.directory}/classes" />
+                                <unzip src="${java.home}/../lib/tools.jar"
+                                       dest="${project.build.directory}/classes" />
                             </tasks>
                         </configuration>
                         <goals>

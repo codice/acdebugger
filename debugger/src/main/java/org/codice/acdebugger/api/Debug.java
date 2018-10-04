@@ -226,6 +226,16 @@ public abstract class Debug {
   }
 
   /**
+   * Checks if security exceptions should be left to fail as they would have normally.
+   *
+   * @return <code>true</code> if security exceptions should be left to fail normally; <code>false
+   *     </code> if we should let the VM think there was no error
+   */
+  public boolean isFailing() {
+    return context.isFailing();
+  }
+
+  /**
    * Checks whether or not to consider <code>doPrivileged()</code> blocks when analysing security
    * failures.
    *

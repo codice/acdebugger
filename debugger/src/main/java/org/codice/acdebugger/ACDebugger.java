@@ -72,7 +72,7 @@ public class ACDebugger implements Callable<Void> {
   @Option(
     names = {"-f", "--fail"},
     description =
-        "When specified, the debugger will to let security failures detected fail normally after reporting on all of them."
+        "When specified, the debugger will let security failures detected fail normally after reporting on all of them."
   )
   private boolean failing = false;
 

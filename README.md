@@ -95,7 +95,7 @@ Specifies that a breakpoint should be added in Eclipse's Service Registry to det
 These failures are analyzed and reported as normal security check failures. This option tends to slow down the system a bit as the debugger is invoked for all checks and not just when a failure is about to be reported.
 
 #### --fail / -f
-When specified, the debugger will to let security failures detected fail normally after reporting on all of them.
+When specified, the debugger will let security failures detected fail normally after reporting on all of them.
 
 #### --grant / -g
 When specified, the debugger will use the backdoor and a registered ServicePermission service to temporarily grant permissions for detected security failures which after analysis yields a single solution. 

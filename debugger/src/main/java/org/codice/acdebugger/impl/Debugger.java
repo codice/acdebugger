@@ -118,6 +118,16 @@ public class Debugger {
   }
 
   /**
+   * Sets whether or not to let security exceptions fail.
+   *
+   * @param failing <code>true</code> to automatically let security exceptions fail; <code>false
+   *     </code> to let the VM think there was no error
+   */
+  public void setFailing(boolean failing) {
+    context.setFailing(failing);
+  }
+
+  /**
    * Sets whether or not to monitor service event permission checks.
    *
    * @param monitoring <code>true</code> to monitor service event permission checks; <code>false
@@ -141,7 +151,6 @@ public class Debugger {
   /** Attaches this debugger to the VM. */
   @SuppressWarnings("squid:S106" /* this is a console application */)
   public Debugger attach() throws IOException, IllegalConnectorArgumentsException {
-    System.out.println("AC Debugger: Attaching to " + host + ":" + port + " ...");
     final VirtualMachineManager vmm = Bootstrap.virtualMachineManager();
     final List<AttachingConnector> connectors = vmm.attachingConnectors();
     final AttachingConnector connector =
@@ -161,7 +170,7 @@ public class Debugger {
     map.put(HOST_KEY, hostArg);
     this.debug = new DebugImpl(context, connector.attach(map));
     debug.virtualMachine().setDebugTraceMode(VirtualMachine.TRACE_NONE);
-    System.out.printf("AC Debugger: Connected to:%n%s%n%n", debug.virtualMachine().description());
+    System.out.printf("AC Debugger: Attached to:%n%s%n%n", debug.virtualMachine().description());
     return this;
   }
 
@@ -260,14 +269,15 @@ public class Debugger {
 
   @SuppressWarnings({
     "squid:S1181", /* letting VirtualMachineErrors bubble out directly, so ok to catch Throwable */
-    "squid:S1148" /* this is a console application */
+    "squid:S1148", /* this is a console application */
+    "squid:S106" /* this is a console application */
   })
   private boolean handleEventSet(EventSet eventSet, EventIterator i, AtomicBoolean resume) {
     try {
       final Event event = i.next();
 
       if (event instanceof VMDisconnectEvent) {
-        System.out.println("");
+        System.out.println();
         System.out.println("AC Debugger: Attached VM has disconnected");
         context.stop();
         return true;

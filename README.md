@@ -46,10 +46,12 @@ The following debugger options are available:
 * --port / -p `<port number>`
 * --wait / -w
 * --timeout `<timeout>` (only applies when `--wait` is used)
+* --reconnect / -r
 * --continuous / -c
 * --admin / -a
 * --debug / -d
 * --service / -s
+* --fail / -f
 * --grant / -g
 * --help / -h
 * --version / -V
@@ -72,8 +74,11 @@ Indicates to wait for a connection. The default timeout is 10 minutes.
 #### --timeout `<timeout>`
 Specified to change the default timeout when waiting for a connection; it indicates the maximum number of minutes to wait (defaults to 10 minutes).
 
+#### --reconnect / -r
+Indicates to attempt to reconnect automatically after the attached VM has disconnected.
+
 #### --continuous / -c
-Specifies to run in continuous mode where the debugger will tell the VM not to fail on any security failures detected and report on all failures found.
+Specifies to run in continuous mode where the debugger will tell the VM not to fail on any security failures detected (unless --fail is specified) and report on all failures found.
 
 #### --admin / -a
 Indicates the tool is being run for an admin. In such cases, the analysis won't be as extensive since an administrator wouldn't be able to modify the code for example.
@@ -85,11 +90,14 @@ Additional information about detected security failures such as stack traces and
 
 Please refer to [this page](docs/debug.MD) for more information on the format of the output and for examples.
 
-#### --service
+#### --service / -s
 Specifies that a breakpoint should be added in Eclipse's Service Registry to detect internal security checks done for given bundles before dispatching service events. 
 These failures are analyzed and reported as normal security check failures. This option tends to slow down the system a bit as the debugger is invoked for all checks and not just when a failure is about to be reported.
 
-#### --grant
+#### --fail / -f
+When specified, the debugger will to let security failures detected fail normally after reporting on all of them.
+
+#### --grant / -g
 When specified, the debugger will use the backdoor and a registered ServicePermission service to temporarily grant permissions for detected security failures which after analysis yields a single solution. 
 This is only temporary and will not survive a restart of the VM but will prevent any further failures that would otherwise not be if the permission(s) were defined. 
 It also tends to slow down the system since the OSGi permission cache ends up being cleared each time.

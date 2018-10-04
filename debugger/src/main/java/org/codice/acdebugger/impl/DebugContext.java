@@ -41,6 +41,8 @@ public class DebugContext {
 
   private volatile boolean granting = false;
 
+  private volatile boolean failing = false;
+
   private volatile boolean monitoring = false;
 
   private volatile boolean debug = false;
@@ -230,6 +232,26 @@ public class DebugContext {
    */
   public void setGranting(boolean granting) {
     this.granting = granting;
+  }
+
+  /**
+   * Checks if security exceptions should be left to fail as they would have normally.
+   *
+   * @return <code>true</code> if security exceptions should be left to fail normally; <code>false
+   *     </code> if we should let the VM think there was no error
+   */
+  public boolean isFailing() {
+    return failing;
+  }
+
+  /**
+   * Sets whether or not to let security exceptions fail.
+   *
+   * @param failing <code>true</code> to automatically let security exceptions fail; <code>false
+   *     </code> to let the VM think there was no error
+   */
+  public void setFailing(boolean failing) {
+    this.failing = failing;
   }
 
   /**

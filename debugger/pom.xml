@@ -52,10 +52,6 @@
             <groupId>info.picocli</groupId>
             <artifactId>picocli</artifactId>
         </dependency>
-        <dependency>
-            <groupId>org.awaitility</groupId>
-            <artifactId>awaitility</artifactId>
-        </dependency>
     </dependencies>
 
     <build>
@@ -74,9 +70,9 @@
                         <phase>generate-resources</phase>
                         <configuration>
                             <tasks>
-                                <echo message="unzipping tools.jar"/>
+                                <echo message="unzipping tools.jar" />
                                 <unzip src="${java.home}/../lib/tools.jar"
-                                       dest="${project.build.directory}/classes"/>
+                                       dest="${project.build.directory}/classes" />
                             </tasks>
                         </configuration>
                         <goals>

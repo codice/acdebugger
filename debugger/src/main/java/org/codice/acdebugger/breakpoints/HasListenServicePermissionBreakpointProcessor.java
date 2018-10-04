@@ -62,7 +62,8 @@ public class HasListenServicePermissionBreakpointProcessor implements Breakpoint
     // force early return as if the domain had the permission since we either tested it above
     // and it was true or it is false and we are recording an error while still continuing as
     // if the domain had the permission
-    if (debug.isContinuous()) { // only force in continuous mode
+    if (!debug.isFailing() && debug.isContinuous()) {
+      // only force in continuous mode and if we are not failing
       thread.forceEarlyReturn(debug.reflection().toMirror(true));
     } // else - let it go through the normal process and fail if need be
   }

@@ -104,6 +104,16 @@ public class ReflectionUtil {
   }
 
   /**
+   * Checks if there is a current thread associates with this debug instance.
+   *
+   * @return <code>false</code> if it is not currently associated with a thread; <code>true</code>
+   *     otherwise
+   */
+  public boolean hasThread() {
+    return thread != null;
+  }
+
+  /**
    * Determines if the class or interface represented by <code>signature</code> is either the same
    * as, or is a superclass or superinterface of, the class or interface represented by the
    * specified {@code Type} parameter. It returns <code>true</code> if so; otherwise it returns
@@ -321,7 +331,7 @@ public class ReflectionUtil {
    *     others have to be {@link ObjectReference} objects)
    * @return the result value or unwrapped object or <code>null</code> if the result or <code>obj
    *     </code> is <code>null</code>
-   * @throws Error if a failure occurs while invoking the method of if the method could not be
+   * @throws Error if a failure occurs while invoking the method or if the method could not be
    *     located
    */
   @Nullable
@@ -528,10 +538,10 @@ public class ReflectionUtil {
    *
    * @param obj the reference to the object to gets its string representation
    * @return the corresponding string representation
-   * @throws Exception if an exception occurred while retrieving the string representation
+   * @throws Error if a failure occurs while invoking the <code>toString()</code> method
    */
   @SuppressWarnings("squid:S00112" /* Forced to by the Java debugger API */)
-  public String toString(ObjectReference obj) throws Exception {
+  public String toString(ObjectReference obj) {
     return invoke(obj, "toString", ReflectionUtil.METHOD_SIGNATURE_NO_ARGS_STRING_RESULT);
   }
 

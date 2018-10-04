@@ -29,6 +29,7 @@ import java.util.Comparator;
 import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.stream.Collectors;
@@ -83,7 +84,7 @@ public class Backdoor implements BundleActivator {
    * bundle context, or even a classloader. This methods makes all attempts possible to figure out
    * the corresponding bundle (in some case based on implementation details).
    *
-   * @param obj the object for which to find the corresponding bundle.
+   * @param obj the object for which to find the corresponding bundle
    * @return the name/location of the corresponding bundle or <code>null</code> if unable to find it
    */
   @SuppressWarnings({
@@ -93,7 +94,37 @@ public class Backdoor implements BundleActivator {
   @Nullable
   public String getBundle(@Nullable Object obj) {
     try {
-      return AccessController.doPrivileged((PrivilegedAction<String>) () -> getBundle0(obj));
+      final Bundle bundle =
+          AccessController.doPrivileged((PrivilegedAction<Bundle>) () -> getBundle0(obj));
+
+      return (bundle != null) ? bundle.getSymbolicName() : null;
+    } catch (VirtualMachineError e) {
+      throw e;
+    } catch (Throwable t) {
+      t.printStackTrace(); // suppress checkstyle:RegexpSingleline|RegexpMultiline
+      throw t;
+    }
+  }
+
+  /**
+   * Gets a bundle version for the given object. The object can be a bundle, a protection domain, a
+   * bundle context, or even a classloader. This methods makes all attempts possible to figure out
+   * the corresponding bundle (in some case based on implementation details).
+   *
+   * @param obj the object for which to find the corresponding bundle version
+   * @return the version of the corresponding bundle or <code>null</code> if unable to find it
+   */
+  @SuppressWarnings({
+    "squid:S1181", /* letting VirtualMachineErrors bubble out directly, so ok to catch Throwable */
+    "squid:S1148" /* don't have access to logger at this stage */
+  })
+  @Nullable
+  public String getBundleVersion(@Nullable Object obj) {
+    try {
+      final Bundle bundle =
+          AccessController.doPrivileged((PrivilegedAction<Bundle>) () -> getBundle0(obj));
+
+      return Objects.toString((bundle != null) ? bundle.getVersion() : null, null);
     } catch (VirtualMachineError e) {
       throw e;
     } catch (Throwable t) {
@@ -262,33 +293,33 @@ public class Backdoor implements BundleActivator {
   }
 
   /**
-   * Gets a bundle location for the given object. The object can be a bundle, a protection domain, a
-   * bundle context, or even a classloader. This methods makes all attempts possible to figure out
-   * the corresponding bundle (in some case based on implementation details).
+   * Gets information from the bundle associated with the given object. The object can be a bundle,
+   * a protection domain, a bundle context, or even a classloader. This methods makes all attempts
+   * possible to figure out the corresponding bundle (in some case based on implementation details).
    *
-   * @param obj the object for which to find the corresponding bundle.
-   * @return the name/location of the corresponding bundle or <code>null</code> if unable to find it
+   * @param obj the object for which to find the corresponding bundle
+   * @return the bundle of the corresponding bundle or <code>null</code> if unable to find it
    */
   @Nullable
   @SuppressWarnings({
     "squid:S3776", /* Recursive logic and simple enough to not warrant decomposing more */
     "squid:S1872" /* cannot use instanceof as the class is not exported */
   })
-  private String getBundle0(@Nullable Object obj) {
+  private Bundle getBundle0(@Nullable Object obj) {
     // NOTE: The logic here should be kept in sync with the logic in
     // org.codice.acdebugger.api.BundleUtil
-    String bundle = null;
+    Bundle bundle = null;
 
     if (obj == null) {
       return null;
     } else if (obj instanceof Bundle) {
-      return ((Bundle) obj).getSymbolicName();
+      return (Bundle) obj;
     } else if (obj instanceof BundleReference) {
-      return ((BundleReference) obj).getBundle().getSymbolicName();
+      return ((BundleReference) obj).getBundle();
     } else if (obj instanceof BundleWiring) {
-      return ((BundleWiring) obj).getBundle().getSymbolicName();
+      return ((BundleWiring) obj).getBundle();
     } else if (obj instanceof BundleContext) {
-      return ((BundleContext) obj).getBundle().getSymbolicName();
+      return ((BundleContext) obj).getBundle();
     } else if (obj instanceof ProtectionDomain) {
       // check if we have a protection domain with Eclipse's permissions
       final PermissionCollection permissions = ((ProtectionDomain) obj).getPermissions();

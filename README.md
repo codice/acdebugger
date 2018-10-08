@@ -42,6 +42,7 @@ As seen in the above example, the analysis gives priority to extending existing 
 ### Options
 The following debugger options are available:
 * --help / -h
+* --version / -V
 * --host / -H `<hostname or IP>`
 * --port / -p `<port number>`
 * --wait / -w
@@ -53,8 +54,6 @@ The following debugger options are available:
 * --service / -s
 * --fail / -f
 * --grant / -g
-* --help / -h
-* --version / -V
 
 #### --help / -h 
 Prints out usage information and exit.
@@ -75,7 +74,7 @@ Indicates to wait for a connection. The default timeout is 10 minutes.
 Specified to change the default timeout when waiting for a connection; it indicates the maximum number of minutes to wait (defaults to 10 minutes).
 
 #### --reconnect / -r
-Indicates to attempt to reconnect automatically after the attached VM has disconnected.
+Indicates to attempt to reconnect automatically after the attached VM has disconnected  (--continuous must also be specified).
 
 #### --continuous / -c
 Specifies to run in continuous mode where the debugger will tell the VM not to fail on any security failures detected (unless --fail is specified) and report on all failures found.

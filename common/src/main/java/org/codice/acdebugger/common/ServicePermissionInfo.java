@@ -31,7 +31,6 @@ public class ServicePermissionInfo {
    * The {@link java.security.ProtectionDomain#implies(Permission)} result from the requested domain
    * and service permission.
    */
-  @Nullable // only because Boon may not set it as it bypasses our ctor and the final keyword
   private final boolean implies;
 
   /**

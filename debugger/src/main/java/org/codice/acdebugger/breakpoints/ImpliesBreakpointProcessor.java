@@ -22,6 +22,7 @@ import java.security.Permission;
 import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+import org.codice.acdebugger.ACDebugger;
 import org.codice.acdebugger.api.BreakpointProcessor;
 import org.codice.acdebugger.api.Debug;
 import org.codice.acdebugger.impl.BreakpointInfo;
@@ -89,8 +90,9 @@ public class ImpliesBreakpointProcessor implements BreakpointProcessor {
     final StackFrame frame = thread.frame(0);
     final ObjectReference permission = (ObjectReference) frame.getArgumentValues().get(0);
 
-    System.out.println("");
-    System.out.println("PERMISSIONS: " + debug.permissions().getPermissionStrings(permission));
+    System.out.println(ACDebugger.PREFIX);
+    System.out.println(
+        ACDebugger.PREFIX + "PERMISSIONS: " + debug.permissions().getPermissionStrings(permission));
     for (int i = 0; i < debug.thread().frameCount(); i++) {
       final StackFrame f = debug.thread().frame(i);
       final com.sun.jdi.Location location =
@@ -98,7 +100,7 @@ public class ImpliesBreakpointProcessor implements BreakpointProcessor {
       // final String b = debug.getBundle(f);
       // final StackFrameInformation currentFrame = new StackFrameInformation(b, location);
 
-      System.out.println(">>>>>> " + location);
+      System.out.println(ACDebugger.PREFIX + ">>>>>> " + location);
     }
     // force early return as if the domain had permission, that way we simulate no security manager;
     // allowing us to record what is missing while continuing to run

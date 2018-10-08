@@ -19,6 +19,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import javax.annotation.Nullable;
+import org.codice.acdebugger.ACDebugger;
 import org.codice.acdebugger.api.SecurityFailure;
 import org.codice.acdebugger.api.SecuritySolution;
 import org.codice.acdebugger.api.StackFrameInformation;
@@ -69,18 +70,22 @@ class SecurityServicePermissionImpliedInformation extends SecuritySolution
   public void dump(String prefix) {
     final String first = prefix + "IMPLIED PERMISSION FAILURE";
 
-    System.out.println(first);
+    System.out.println(ACDebugger.PREFIX);
+    System.out.println(ACDebugger.PREFIX + first);
     System.out.println(
-        IntStream.range(1, first.length()).mapToObj(i -> "=").collect(Collectors.joining("")));
+        ACDebugger.PREFIX
+            + IntStream.range(0, first.length())
+                .mapToObj(i -> "=")
+                .collect(Collectors.joining("")));
     final String s = (permissionInfos.size() == 1) ? "" : "s";
 
-    System.out.println("Permission" + s + ":");
-    permissionInfos.forEach(p -> System.out.println("    " + p));
-    System.out.println("Granting permission" + s + " to bundle:");
-    System.out.println("    " + bundle);
-    System.out.println("");
-    System.out.println("SOLUTIONS");
-    System.out.println("---------");
+    System.out.println(ACDebugger.PREFIX + "Permission" + s + ":");
+    permissionInfos.forEach(p -> System.out.println(ACDebugger.PREFIX + "    " + p));
+    System.out.println(ACDebugger.PREFIX + "Granting permission" + s + " to bundle:");
+    System.out.println(ACDebugger.PREFIX + "    " + bundle);
+    System.out.println(ACDebugger.PREFIX);
+    System.out.println(ACDebugger.PREFIX + "SOLUTIONS");
+    System.out.println(ACDebugger.PREFIX + "---------");
     print();
   }
 

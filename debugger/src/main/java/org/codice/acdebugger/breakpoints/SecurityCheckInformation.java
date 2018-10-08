@@ -35,6 +35,7 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 import javax.annotation.Nullable;
+import org.codice.acdebugger.ACDebugger;
 import org.codice.acdebugger.api.Debug;
 import org.codice.acdebugger.api.SecurityFailure;
 import org.codice.acdebugger.api.SecuritySolution;
@@ -347,23 +348,27 @@ class SecurityCheckInformation extends SecuritySolution implements SecurityFailu
     final String first =
         prefix + (isAcceptable() ? "ACCEPTABLE " : "") + "ACCESS CONTROL PERMISSION FAILURE";
 
-    System.out.println(first);
+    System.out.println(ACDebugger.PREFIX);
+    System.out.println(ACDebugger.PREFIX + first);
     System.out.println(
-        IntStream.range(1, first.length()).mapToObj(i -> "=").collect(Collectors.joining("")));
+        ACDebugger.PREFIX
+            + IntStream.range(0, first.length())
+                .mapToObj(i -> "=")
+                .collect(Collectors.joining("")));
     dump0();
     if (!isAcceptable()) {
       for (int i = 0; i < analysis.size(); i++) {
         final SecuritySolution info = analysis.get(i);
 
-        System.out.println("");
-        System.out.println("OPTION " + (i + 1));
-        System.out.println("--------");
+        System.out.println(ACDebugger.PREFIX);
+        System.out.println(ACDebugger.PREFIX + "OPTION " + (i + 1));
+        System.out.println(ACDebugger.PREFIX + "--------");
         ((SecurityCheckInformation) info).dump0();
       }
       if (!analysis.isEmpty()) {
-        System.out.println("");
-        System.out.println("SOLUTIONS");
-        System.out.println("---------");
+        System.out.println(ACDebugger.PREFIX);
+        System.out.println(ACDebugger.PREFIX + "SOLUTIONS");
+        System.out.println(ACDebugger.PREFIX + "---------");
         analysis.forEach(SecuritySolution::print);
       }
     }
@@ -567,13 +572,13 @@ class SecurityCheckInformation extends SecuritySolution implements SecurityFailu
   @SuppressWarnings("squid:S106" /* this is a console application */)
   private void dumpPermission() {
     if (isAcceptable()) {
-      System.out.println("Acceptable permissions:");
-      System.out.println("    " + getAcceptablePermissions());
+      System.out.println(ACDebugger.PREFIX + "Acceptable permissions:");
+      System.out.println(ACDebugger.PREFIX + "    " + getAcceptablePermissions());
     } else {
       final String s = (permissionInfos.size() == 1) ? "" : "s";
 
-      System.out.println("Permission" + s + ":");
-      permissionInfos.forEach(p -> System.out.println("    " + p));
+      System.out.println(ACDebugger.PREFIX + "Permission" + s + ":");
+      permissionInfos.forEach(p -> System.out.println(ACDebugger.PREFIX + "    " + p));
     }
   }
 
@@ -583,24 +588,25 @@ class SecurityCheckInformation extends SecuritySolution implements SecurityFailu
       final String bs = (grantedBundles.size() == 1) ? "" : "s";
       final String ps = (permissionInfos.size() == 1) ? "" : "s";
 
-      System.out.println("Granting permission" + ps + " to bundle" + bs + ":");
-      grantedBundles.forEach(d -> System.out.println("    " + d));
+      System.out.println(ACDebugger.PREFIX + "Granting permission" + ps + " to bundle" + bs + ":");
+      grantedBundles.forEach(d -> System.out.println(ACDebugger.PREFIX + "    " + d));
     }
     if (!doPrivileged.isEmpty()) {
-      System.out.println("Extending privileges at:");
-      doPrivileged.forEach(f -> System.out.println("    " + f));
+      System.out.println(ACDebugger.PREFIX + "Extending privileges at:");
+      doPrivileged.forEach(f -> System.out.println(ACDebugger.PREFIX + "    " + f));
     }
   }
 
   @SuppressWarnings("squid:S106" /* this is a console application */)
   private void dumpContext() {
-    System.out.println("Context:");
-    System.out.println("     " + StackFrameInformation.BUNDLE0);
+    System.out.println(ACDebugger.PREFIX + "Context:");
+    System.out.println(ACDebugger.PREFIX + "     " + StackFrameInformation.BUNDLE0);
     for (int i = 0; i < domains.size(); i++) {
       final String domain = domains.get(i);
 
       System.out.println(
-          " "
+          ACDebugger.PREFIX
+              + " "
               + ((i == failedDomainIndex) ? "--> " : "    ")
               + (privilegedDomains.contains(domain) ? "" : "*")
               + domain
@@ -612,16 +618,18 @@ class SecurityCheckInformation extends SecuritySolution implements SecurityFailu
 
   @SuppressWarnings("squid:S106" /* this is a console application */)
   private void dumpStack() {
-    System.out.println("Stack:");
+    System.out.println(ACDebugger.PREFIX + "Stack:");
     for (int i = 0; i < stack.size(); i++) {
       System.out.println(
-          " "
+          ACDebugger.PREFIX
+              + " "
               + ((i == failedStackIndex) ? "-->" : "   ")
               + " at "
               + (isAcceptable() && acceptablePattern.wasMatched(i) ? "#" : "")
               + stack.get(i).toString(privilegedDomains));
       if ((privilegedStackIndex != -1) && (i == privilegedStackIndex)) {
-        System.out.println("    ----------------------------------------------------------");
+        System.out.println(
+            ACDebugger.PREFIX + "    ----------------------------------------------------------");
       }
     }
   }
@@ -636,34 +644,38 @@ class SecurityCheckInformation extends SecuritySolution implements SecurityFailu
 
   @SuppressWarnings("squid:S106" /* this is a console application */)
   private void dumpTroubleshootingInfo(Debug debug, String... msg) {
-    System.err.println(SecurityCheckInformation.DOUBLE_LINES);
-    Stream.of(msg).forEach(System.err::println);
-    System.err.println("PLEASE REPORT AN ISSUE WITH THE FOLLOWING INFORMATION AND INSTRUCTIONS");
+    System.err.println(ACDebugger.PREFIX + SecurityCheckInformation.DOUBLE_LINES);
+    Stream.of(msg).map(ACDebugger.PREFIX::concat).forEach(System.err::println);
+    System.err.println(
+        ACDebugger.PREFIX
+            + "PLEASE REPORT AN ISSUE WITH THE FOLLOWING INFORMATION AND INSTRUCTIONS");
     System.err.println("ON HOW TO REPRODUCE IT");
-    System.err.println(SecurityCheckInformation.DOUBLE_LINES);
-    System.err.println("CURRENT DOMAIN CLASS: " + currentDomain.type().name());
-    System.err.println("CURRENT DOMAIN: " + currentDomain);
-    System.err.println("LOCAL 'i' VARIABLE: " + local_i);
-    System.err.println("ACCESS CONTROL CONTEXT:");
-    context.forEach(b -> System.err.println("  " + b));
-    System.err.println("CONTEXT:");
-    System.err.println("  " + StackFrameInformation.BUNDLE0);
+    System.err.println(ACDebugger.PREFIX + SecurityCheckInformation.DOUBLE_LINES);
+    System.err.println(ACDebugger.PREFIX + "CURRENT DOMAIN CLASS: " + currentDomain.type().name());
+    System.err.println(ACDebugger.PREFIX + "CURRENT DOMAIN: " + currentDomain);
+    System.err.println(ACDebugger.PREFIX + "LOCAL 'i' VARIABLE: " + local_i);
+    System.err.println(ACDebugger.PREFIX + "ACCESS CONTROL CONTEXT:");
+    context.forEach(b -> System.err.println(ACDebugger.PREFIX + "  " + b));
+    System.err.println(ACDebugger.PREFIX + "CONTEXT:");
+    System.err.println(ACDebugger.PREFIX + "  " + StackFrameInformation.BUNDLE0);
     for (int i = 0; i < domains.size(); i++) {
       System.err.print(
-          "  "
+          ACDebugger.PREFIX
+              + "  "
               + domains.get(i)
               + (((i >= combinedDomainsStartIndex) && (combinedDomainsStartIndex != -1))
                   ? " (combined)"
                   : ""));
     }
-    System.err.println("STACK:");
+    System.err.println(ACDebugger.PREFIX + "STACK:");
     for (int i = 0; i < stack.size(); i++) {
-      System.err.println("  at " + stack.get(i));
+      System.err.println(ACDebugger.PREFIX + "  at " + stack.get(i));
       if ((privilegedStackIndex != -1) && (i == privilegedStackIndex)) {
-        System.out.println("    ----------------------------------------------------------");
+        System.out.println(
+            ACDebugger.PREFIX + "    ----------------------------------------------------------");
       }
     }
-    System.err.println(SecurityCheckInformation.DOUBLE_LINES);
+    System.err.println(ACDebugger.PREFIX + SecurityCheckInformation.DOUBLE_LINES);
   }
 
   /** Pattern class for matching specific permission and stack information. */

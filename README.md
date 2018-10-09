@@ -14,23 +14,23 @@ This option is not on by default as it can slow down the system a bit.
 To run the debugger tool, open the debugger project in IDE and run the `org.codice.acdebuger.Main.main()` method. Options can be set in the corresponding IDE `Run/Debug Configuration`.
 
 The maven build can be used to produce an executable jar. The jar can
-be run by doing: `java -jar acdebugger-debugger-1.0-SNAPSHOT-jar-with-dependencies.jar [options]>`
+be run by doing: `java -jar acdebugger-debugger-1.5-jar-with-dependencies.jar [options]>`
 
 ### Typical Output
 ```
-0002 - Check permission failure for platform-migratable-api: java.io.FilePermission "/projects/ddf-2.14.0-SNAPSHOT/security/configurations.policy", "read" {
-    Analyze the following 2 solutions and choose the best:
-    {
-        Add an AccessController.doPrivileged() block around:
-            platform-migration(org.codice.ddf.configuration.migration.ExportMigrationContextImpl:145)
-    }
-    {
-        Add the following permission to default.policy:
-            grant codeBase "file:/platform-migratable-api" {
-                permission java.io.FilePermission "/projects/ddf-2.14.0-SNAPSHOT/security/configurations.policy", "read";
-            }
-    }
-}
+AC Debugger: 0002 - Check permission failure for platform-migratable-api: java.io.FilePermission "/projects/ddf-2.14.0-SNAPSHOT/security/configurations.policy", "read" {
+AC Debugger:     Analyze the following 2 solutions and choose the best:
+AC Debugger:     {
+AC Debugger:         Add an AccessController.doPrivileged() block around:
+AC Debugger:             platform-migration(org.codice.ddf.configuration.migration.ExportMigrationContextImpl:145)
+AC Debugger:     }
+AC Debugger:     {
+AC Debugger:         Add the following permission to default.policy:
+AC Debugger:             grant codeBase "file:/platform-migratable-api" {
+AC Debugger:                 permission java.io.FilePermission "/projects/ddf-2.14.0-SNAPSHOT/security/configurations.policy", "read";
+AC Debugger:             }
+AC Debugger:     }
+AC Debugger: }
 ```
 
 The above example is reporting the second analysis solutions block with 2 potential solutions.

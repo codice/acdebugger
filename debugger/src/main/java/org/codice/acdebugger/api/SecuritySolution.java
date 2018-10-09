@@ -21,6 +21,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
+import org.codice.acdebugger.ACDebugger;
 
 /** Represents a solution to a security failure that was detected while debugging. */
 public class SecuritySolution implements Comparable<SecuritySolution> {
@@ -99,34 +100,46 @@ public class SecuritySolution implements Comparable<SecuritySolution> {
    */
   @SuppressWarnings("squid:S106" /* this is a console application */)
   public void print(String prefix) {
-    System.out.println(prefix + "{");
+    System.out.println(ACDebugger.PREFIX + prefix + "{");
     final String and;
 
     if (!grantedBundles.isEmpty()) {
       final String s = (permissionInfos.size() == 1) ? "" : "s";
 
       System.out.println(
-          prefix + "    Add the following permission" + s + " to the appropriate policy file:");
+          ACDebugger.PREFIX
+              + prefix
+              + "    Add the following permission"
+              + s
+              + " to the appropriate policy file:");
       System.out.println(
-          prefix
+          ACDebugger.PREFIX
+              + prefix
               + "        grant codeBase \"file:/"
               + grantedBundles.stream().sorted().collect(Collectors.joining("/"))
               + "\" {");
       permissionInfos
           .stream()
           .sorted()
-          .forEach(p -> System.out.println(prefix + "            permission " + p + ";"));
-      System.out.println(prefix + "        }");
+          .forEach(
+              p ->
+                  System.out.println(
+                      ACDebugger.PREFIX + prefix + "            permission " + p + ";"));
+      System.out.println(ACDebugger.PREFIX + prefix + "        }");
       and = "and a";
     } else {
       and = "A";
     }
     if (!doPrivileged.isEmpty()) {
       System.out.println(
-          prefix + "    " + and + "dd an AccessController.doPrivileged() block around:");
+          ACDebugger.PREFIX
+              + prefix
+              + "    "
+              + and
+              + "dd an AccessController.doPrivileged() block around:");
       doPrivileged.forEach(f -> System.out.println(prefix + "        " + f));
     }
-    System.out.println(prefix + "}");
+    System.out.println(ACDebugger.PREFIX + prefix + "}");
   }
 
   @Override

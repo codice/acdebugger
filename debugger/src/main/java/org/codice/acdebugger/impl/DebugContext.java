@@ -22,6 +22,7 @@ import java.util.concurrent.ConcurrentSkipListSet;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 import javax.annotation.Nullable;
+import org.codice.acdebugger.ACDebugger;
 import org.codice.acdebugger.api.SecurityFailure;
 import org.codice.acdebugger.api.SecuritySolution;
 
@@ -343,14 +344,14 @@ public class DebugContext {
       return;
     }
     if (debug) {
-      failure.dump(continuous ? String.format("%n%04d - ", (++count)) : "");
+      failure.dump(continuous ? String.format("%04d - ", (++count)) : "");
     } else {
       if (continuous) {
-        System.out.printf("%04d - %s {%n", (++count), failure);
+        System.out.printf("%s%04d - %s {%n", ACDebugger.PREFIX, (++count), failure);
       } else {
-        System.out.printf("%s {%n", failure);
+        System.out.printf("%s%s {%n", ACDebugger.PREFIX, failure);
       }
-      System.out.println("}");
+      System.out.println(ACDebugger.PREFIX + "}");
     }
   }
 
@@ -378,21 +379,24 @@ public class DebugContext {
     // of this again (if not in continuous mode, then we don't really care about that)
     grantMissingPermissionsIfPossible(solutions);
     if (debug) {
-      failure.dump(continuous ? String.format("%n%04d - ", (++count)) : "");
+      failure.dump(continuous ? String.format("%04d - ", (++count)) : "");
     } else {
       if (continuous) {
-        System.out.printf("%04d - %s {%n", (++count), failure);
+        System.out.printf("%s%04d - %s {%n", ACDebugger.PREFIX, (++count), failure);
       } else {
-        System.out.printf("%s {%n", failure);
+        System.out.printf("%s%s {%n", ACDebugger.PREFIX, failure);
       }
       if (solutions.size() > 1) {
         System.out.println(
-            "    Analyze the following " + solutions.size() + " solutions and choose the best:");
+            ACDebugger.PREFIX
+                + "    Analyze the following "
+                + solutions.size()
+                + " solutions and choose the best:");
       } else {
-        System.out.println("    Solution:");
+        System.out.println(ACDebugger.PREFIX + "    Solution:");
       }
       solutions.forEach(s -> s.print("    "));
-      System.out.println("}");
+      System.out.println(ACDebugger.PREFIX + "}");
       if (!continuous) {
         this.run = false;
       }

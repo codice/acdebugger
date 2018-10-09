@@ -31,6 +31,8 @@ import picocli.CommandLine.Option;
   versionProvider = PropertiesVersionProvider.class
 )
 public class ACDebugger implements Callable<Void> {
+  public static final String PREFIX = "AC Debugger: ";
+
   @Option(
     names = {"-a", "--admin"},
     description =
@@ -125,26 +127,39 @@ public class ACDebugger implements Callable<Void> {
   @Option(
     names = {"-r", "--reconnect"},
     description =
-        "Indicates to attempt to reconnect automatically after the attached VM has disconnected."
+        "Indicates to attempt to reconnect automatically after the attached VM has disconnected (--continuous must also be specified)."
   )
   private boolean reconnect = false;
 
   @Override
   @SuppressWarnings("squid:S106" /* this is a console application */)
   public Void call() throws Exception {
+    if (reconnect && !continuous) {
+      System.err.println(
+          ACDebugger.PREFIX
+              + "--reconnect can only be specified if --continuous is also specified");
+      System.exit(2);
+    }
     while (true) {
       final long endTime = System.currentTimeMillis() + TimeUnit.MINUTES.toMillis(timeout);
       Debugger debugger = null;
 
       // attach to VM
-      System.out.println("AC Debugger: " + new Date());
-      System.out.println("AC Debugger: Attaching to " + host + ":" + port + " ...");
+      System.out.println(ACDebugger.PREFIX + new Date());
+      System.out.println(ACDebugger.PREFIX + "Attaching to " + host + ":" + port + " ...");
       while (debugger == null) {
         try {
           debugger = new Debugger(transport, host, port).attach();
         } catch (ConnectException e) {
           if (!wait || (System.currentTimeMillis() > endTime)) {
-            System.err.println("Unable to connect to " + host + ":" + port + " over " + transport);
+            System.err.println(
+                ACDebugger.PREFIX
+                    + "Unable to connect to "
+                    + host
+                    + ":"
+                    + port
+                    + " over "
+                    + transport);
             System.exit(1);
           } else {
             Thread.sleep(5000L);

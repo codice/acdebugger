@@ -40,6 +40,8 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.stream.Stream;
+import org.codice.acdebugger.ACDebugger;
 import org.codice.acdebugger.api.BreakpointProcessor;
 import org.codice.acdebugger.api.Debug;
 
@@ -170,7 +172,12 @@ public class Debugger {
     map.put(HOST_KEY, hostArg);
     this.debug = new DebugImpl(context, connector.attach(map));
     debug.virtualMachine().setDebugTraceMode(VirtualMachine.TRACE_NONE);
-    System.out.printf("AC Debugger: Attached to:%n%s%n%n", debug.virtualMachine().description());
+    System.out.println(ACDebugger.PREFIX + "Attached to:");
+    Stream.of(debug.virtualMachine().description().split("[\r\n]"))
+        .map("  "::concat)
+        .map(ACDebugger.PREFIX::concat)
+        .forEach(System.out::println);
+    System.out.println(ACDebugger.PREFIX);
     return this;
   }
 
@@ -197,7 +204,7 @@ public class Debugger {
   })
   public void loop() throws Exception {
     final EventQueue evtQueue = debug.virtualMachine().eventQueue();
-    String line = "AC Debugger: Monitoring security exceptions";
+    String line = ACDebugger.PREFIX + "Monitoring security exceptions";
 
     if (debug.isMonitoringService()) {
       line += " and service events";
@@ -220,7 +227,7 @@ public class Debugger {
       line += " missing permissions";
     }
     System.out.println(line);
-    System.out.println();
+    System.out.println(ACDebugger.PREFIX);
     while (context.isRunning()) {
       final EventSet eventSet = evtQueue.remove();
       final EventIterator i = eventSet.eventIterator();
@@ -277,8 +284,8 @@ public class Debugger {
       final Event event = i.next();
 
       if (event instanceof VMDisconnectEvent) {
-        System.out.println();
-        System.out.println("AC Debugger: Attached VM has disconnected");
+        System.out.println(ACDebugger.PREFIX);
+        System.out.println(ACDebugger.PREFIX + "Attached VM has disconnected");
         context.stop();
         return true;
       }

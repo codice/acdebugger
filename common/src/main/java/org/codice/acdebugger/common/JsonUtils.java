@@ -15,6 +15,7 @@ package org.codice.acdebugger.common;
 
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
+import java.lang.reflect.Type;
 
 /** Provides useful functions for dealing with Json. */
 public class JsonUtils {
@@ -30,5 +31,9 @@ public class JsonUtils {
 
   public static <T> T fromJson(String json, Class<T> clazz) {
     return JsonUtils.GSON.fromJson(json, clazz);
+  }
+
+  public static <T> T fromJson(String json, Type type) {
+    return JsonUtils.GSON.fromJson(json, type);
   }
 }

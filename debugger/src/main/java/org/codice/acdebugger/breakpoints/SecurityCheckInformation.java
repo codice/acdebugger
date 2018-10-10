@@ -69,7 +69,9 @@ class SecurityCheckInformation extends SecuritySolution implements SecurityFailu
     }
   }
 
-  /** context array from AccessControlContext at line 472 converted to bundle names */
+  /**
+   * context array from AccessControlContext at line 472 converted to domain location/bundle names
+   */
   private final List<String> context;
 
   /**
@@ -81,15 +83,15 @@ class SecurityCheckInformation extends SecuritySolution implements SecurityFailu
   private final int local_i;
 
   /** domain where the exception is about to be generated for */
-  private final Value currentDomain;
+  private final Value currentDomainValue;
 
-  /** bundle where the exception is about to be generated for */
-  private final String currentBundle;
+  /** domain location/bundle name where the exception is about to be generated for */
+  private final String currentDomain;
 
-  /** list of protection domains (i.e. bundle name for the domain) in the security stack */
+  /** list of protection domains (i.e. bundle name/domain location) in the security stack */
   private final List<String> domains;
 
-  /* list of protection domains (i.e. bundle name for the domain) that are granted the failed permissions */
+  /* list of protection domains (i.e. bundle name/domain location) that are granted the failed permissions */
   private final Set<String> privilegedDomains;
 
   /**
@@ -117,7 +119,7 @@ class SecurityCheckInformation extends SecuritySolution implements SecurityFailu
   private int failedStackIndex = -1;
 
   /**
-   * the stack index of that last place a bundle extended its privileges or -1 if none everything
+   * the stack index of that last place a domain extended its privileges or -1 if none everything
    * between 0 til this index is of interest for the security manager
    */
   private int privilegedStackIndex = -1;
@@ -125,9 +127,9 @@ class SecurityCheckInformation extends SecuritySolution implements SecurityFailu
   private final boolean invalid;
 
   /** First pattern that was matched indicating the failure was acceptable. */
-  private Pattern acceptablePattern = null;
+  @Nullable private Pattern acceptablePattern = null;
 
-  private List<SecuritySolution> analysis = null;
+  @Nullable private List<SecuritySolution> analysis = null;
 
   /**
    * Creates a security check failure.
@@ -168,30 +170,32 @@ class SecurityCheckInformation extends SecuritySolution implements SecurityFailu
         Collections.emptyList());
     this.context = new ArrayList<>(context.size());
     this.local_i = local_i;
-    this.currentDomain = context.get(local_i);
-    this.currentBundle = debug.bundles().get(currentDomain);
+    this.currentDomainValue = context.get(local_i);
+    this.currentDomain = debug.locations().get(currentDomainValue);
     this.domains = new ArrayList<>(context.size());
     this.permission = permission;
     this.privilegedDomains = new HashSet<>(context.size() * 3 / 2);
     for (int i = 0; i < context.size(); i++) {
-      if (i == local_i) { // we know we don't have privileges since we failed here
-        continue;
-      }
-      final Value domain = context.get(i);
-      final String bundle = (domain == currentDomain) ? currentBundle : debug.bundles().get(domain);
+      final Value domainValue = context.get(i);
+      final String domain =
+          (domainValue == currentDomainValue) ? currentDomain : debug.locations().get(domainValue);
 
-      this.context.add(bundle);
-      if (i < local_i) { // we know we have privileges since we failed after `i`
-        debug.permissions().grant(bundle, permissionInfos);
-        privilegedDomains.add(bundle);
-      } else if (domain instanceof ObjectReference) {
-        if (debug.permissions().implies(bundle, permissionInfos)) { // check cache
-          privilegedDomains.add(bundle);
+      this.context.add(domain);
+      if (i == local_i) {
+        // we know we don't have privileges since we failed here so continue but only after
+        // having added the current domain to the context list
+        continue;
+      } else if (i < local_i) { // we know we have privileges since we failed after `i`
+        debug.permissions().grant(domain, permissionInfos);
+        privilegedDomains.add(domain);
+      } else if (domainValue instanceof ObjectReference) {
+        if (debug.permissions().implies(domain, permissionInfos)) { // check cache
+          privilegedDomains.add(domain);
         } else if (debug
             .permissions()
-            .implies((ObjectReference) domain, permission)) { // check attached VM
-          debug.permissions().grant(bundle, permissionInfos);
-          privilegedDomains.add(bundle);
+            .implies((ObjectReference) domainValue, permission)) { // check attached VM
+          debug.permissions().grant(domain, permissionInfos);
+          privilegedDomains.add(domain);
         }
       }
     }
@@ -202,21 +206,21 @@ class SecurityCheckInformation extends SecuritySolution implements SecurityFailu
       final StackFrame frame = debug.thread().frame(i);
       final Location location = frame.location(); // cache before we invoke anything on the thread
       final ObjectReference thisObject = frame.thisObject();
-      final String bundle = debug.bundles().get(frame);
+      final String domain = debug.locations().get(frame);
       final StackFrameInformation currentFrame =
-          new StackFrameInformation(bundle, location, thisObject);
+          new StackFrameInformation(domain, location, thisObject);
 
       stack.add(currentFrame);
     }
-    if (currentBundle == null) {
-      // since bundle-0 always has all permissions, we cannot received null as the current bundle
-      // where the failure occurred
+    if (currentDomain == null) {
+      // since bundle-0/boot domain always has all permissions, we cannot received null as the
+      // current domain where the failure occurred
       dumpTroubleshootingInfo(
-          debug, "AN ERROR OCCURRED WHILE ATTEMPTING TO FIND THE BUNDLE NAME FOR A DOMAIN");
-      throw new Error("unable to find bundle for domain: " + currentDomain.type().name());
+          debug, "AN ERROR OCCURRED WHILE ATTEMPTING TO FIND THE LOCATION FOR A DOMAIN");
+      throw new Error("unable to find location for domain: " + currentDomainValue.type().name());
     }
     this.invalid = !recompute();
-    if (!domains.contains(currentBundle)) {
+    if (!domains.contains(currentDomain)) {
       // it would seem we are unable to find the domain where we failed after recomputing
       dumpTroubleshootingInfo(
           debug,
@@ -228,7 +232,7 @@ class SecurityCheckInformation extends SecuritySolution implements SecurityFailu
   }
 
   /**
-   * Creates a possible solution as if we granted the missing permission to the failed bundle to be
+   * Creates a possible solution as if we granted the missing permission to the failed domain to be
    * analyzed for the given security check failure.
    *
    * @param failure the security check failure for which to create a possible solution
@@ -238,23 +242,23 @@ class SecurityCheckInformation extends SecuritySolution implements SecurityFailu
     this.context = failure.context;
     this.local_i = -1;
     // the combined domain start index is something fixed provided to us when the error is detected
-    // this won't change because we are simply granting permissions to bundles as this wouldn't
+    // this won't change because we are simply granting permissions to domains as this wouldn't
     // change the stack or the access control context as seen originally
     this.combinedDomainsStartIndex = failure.combinedDomainsStartIndex;
+    this.currentDomainValue = failure.currentDomainValue;
     this.currentDomain = failure.currentDomain;
-    this.currentBundle = failure.currentBundle;
     this.domains = new ArrayList<>(failure.domains.size());
     this.privilegedDomains = new HashSet<>(failure.privilegedDomains);
     this.permission = failure.permission;
     this.stack = failure.stack;
-    // add the specified bundle as a privileged one
-    privilegedDomains.add(failure.getFailedBundle());
-    grantedBundles.add(failure.getFailedBundle());
+    // add the failed domain from the specified failure as a privileged one
+    privilegedDomains.add(failure.getFailedDomain());
+    grantedDomains.add(failure.getFailedDomain());
     this.invalid = !recompute();
   }
 
   /**
-   * Creates a possible solution as if we were extending privileges of the bundle at the specified
+   * Creates a possible solution as if we were extending privileges of the domain at the specified
    * stack index to be analyzed for the given security check failure.
    *
    * @param failure the security check failure for which to create a possible solution
@@ -271,8 +275,8 @@ class SecurityCheckInformation extends SecuritySolution implements SecurityFailu
     this.context = failure.context;
     this.combinedDomainsStartIndex = -1;
     this.local_i = -1;
+    this.currentDomainValue = failure.currentDomainValue;
     this.currentDomain = failure.currentDomain;
-    this.currentBundle = failure.currentBundle;
     this.domains = new ArrayList<>(failure.domains.size());
     this.privilegedDomains = failure.privilegedDomains;
     this.permission = failure.permission;
@@ -285,7 +289,7 @@ class SecurityCheckInformation extends SecuritySolution implements SecurityFailu
       final StackFrameInformation frame = failure.stack.get(i);
 
       stack.add(frame);
-      newStackDomainsUpToDoPrivileged.add(frame.getBundle());
+      newStackDomainsUpToDoPrivileged.add(frame.getDomain());
     }
     stack.add(StackFrameInformation.DO_PRIVILEGED);
     doPrivileged.add(failure.stack.get(index));
@@ -296,13 +300,13 @@ class SecurityCheckInformation extends SecuritySolution implements SecurityFailu
   }
 
   /**
-   * Gets the name of the bundle where the failure was detected.
+   * Gets the domain where the failure was detected.
    *
-   * @return the name of the bundle where the failure was detected or <code>null</code> if no
-   *     failure is recomputed from the solution
+   * @return the domain where the failure was detected or <code>null</code> if no failure is
+   *     recomputed from the solution
    */
   @Nullable
-  public String getFailedBundle() {
+  public String getFailedDomain() {
     return (failedDomainIndex != -1) ? domains.get(failedDomainIndex) : null;
   }
 
@@ -328,8 +332,8 @@ class SecurityCheckInformation extends SecuritySolution implements SecurityFailu
   }
 
   @Override
-  public Set<String> getGrantedBundles() {
-    return Collections.unmodifiableSet(grantedBundles);
+  public Set<String> getGrantedDomains() {
+    return Collections.unmodifiableSet(grantedDomains);
   }
 
   @Override
@@ -344,7 +348,7 @@ class SecurityCheckInformation extends SecuritySolution implements SecurityFailu
 
   @SuppressWarnings("squid:S106" /* this is a console application */)
   @Override
-  public void dump(String prefix) {
+  public void dump(boolean osgi, String prefix) {
     final String first =
         prefix + (isAcceptable() ? "ACCEPTABLE " : "") + "ACCESS CONTROL PERMISSION FAILURE";
 
@@ -355,7 +359,7 @@ class SecurityCheckInformation extends SecuritySolution implements SecurityFailu
             + IntStream.range(0, first.length())
                 .mapToObj(i -> "=")
                 .collect(Collectors.joining("")));
-    dump0();
+    dump0(osgi);
     if (!isAcceptable()) {
       for (int i = 0; i < analysis.size(); i++) {
         final SecuritySolution info = analysis.get(i);
@@ -363,35 +367,35 @@ class SecurityCheckInformation extends SecuritySolution implements SecurityFailu
         System.out.println(ACDebugger.PREFIX);
         System.out.println(ACDebugger.PREFIX + "OPTION " + (i + 1));
         System.out.println(ACDebugger.PREFIX + "--------");
-        ((SecurityCheckInformation) info).dump0();
+        ((SecurityCheckInformation) info).dump0(osgi);
       }
       if (!analysis.isEmpty()) {
         System.out.println(ACDebugger.PREFIX);
         System.out.println(ACDebugger.PREFIX + "SOLUTIONS");
         System.out.println(ACDebugger.PREFIX + "---------");
-        analysis.forEach(SecuritySolution::print);
+        analysis.forEach(s -> s.print(osgi));
       }
     }
   }
 
   @Override
   public String toString() {
-    if (currentBundle == null) {
+    if (currentDomain == null) {
       return "";
     }
     if (isAcceptable()) {
       return "Acceptable check permissions failure for "
-          + currentBundle
+          + currentDomain
           + ": "
           + getAcceptablePermissions();
     } else {
       if (permissionInfos.size() == 1) {
         return "Check permission failure for "
-            + currentBundle
+            + currentDomain
             + ": "
             + permissionInfos.iterator().next();
       }
-      return "Check permissions failure for " + currentBundle + ": " + permissionInfos;
+      return "Check permissions failure for " + currentDomain + ": " + permissionInfos;
     }
   }
 
@@ -425,8 +429,8 @@ class SecurityCheckInformation extends SecuritySolution implements SecurityFailu
     domains.clear();
     this.privilegedStackIndex = -1;
     this.failedStackIndex = -1;
-    final Set<String> grantedDomains = new HashSet<>(this.grantedBundles);
-    final boolean foundFailedBundle = recomputeFromStack(grantedDomains);
+    final Set<String> grantedDomains = new HashSet<>(this.grantedDomains);
+    final boolean foundFailedDomain = recomputeFromStack(grantedDomains);
 
     if (doPrivileged.isEmpty()) {
       // make sure we account for all inherited/combined domains in the access control context. In
@@ -434,7 +438,7 @@ class SecurityCheckInformation extends SecuritySolution implements SecurityFailu
       // access control context be added to the list that the access controller is checking against.
       // If we have more than we need to remember as there will be no stack lines that will
       // correspond to these domains
-      recomputeFromContext(grantedDomains, foundFailedBundle);
+      recomputeFromContext(grantedDomains, foundFailedDomain);
     } else {
       // if we are extending privileges then we are modifying the stack and the access control
       // context that would now result from the same exception we are trying to recompute.
@@ -451,23 +455,23 @@ class SecurityCheckInformation extends SecuritySolution implements SecurityFailu
     return grantedDomains.isEmpty();
   }
 
-  private void recomputeFromContext(Set<String> grantedDomains, boolean foundFailedBundle) {
+  private void recomputeFromContext(Set<String> grantedDomains, boolean foundFailedDomain) {
     for (int i = 0; i < context.size(); i++) {
-      final String bundle = context.get(i);
+      final String domain = context.get(i);
 
-      if ((bundle != null) && !domains.contains(bundle)) {
-        domains.add(bundle);
+      if ((domain != null) && !domains.contains(domain)) {
+        domains.add(domain);
         if (combinedDomainsStartIndex == -1) {
           this.combinedDomainsStartIndex = domains.size() - 1;
         }
-        if (!foundFailedBundle) {
-          if (!privilegedDomains.contains(bundle)) { // found the place it will fail!!!!
-            foundFailedBundle = true;
+        if (!foundFailedDomain) {
+          if (!privilegedDomains.contains(domain)) { // found the place it will fail!!!!
+            foundFailedDomain = true;
             this.failedDomainIndex = domains.size() - 1;
           } else {
             // keep track of the fact that this granted domain helped if it was one
             // that we artificially granted the permission to
-            grantedDomains.remove(bundle);
+            grantedDomains.remove(domain);
           }
         }
       }
@@ -481,7 +485,7 @@ class SecurityCheckInformation extends SecuritySolution implements SecurityFailu
     while (true) {
       final StackFrameInformation nextFrame = stack.get(privilegedStackIndex);
 
-      if (!nextFrame.isCallingDoPrivilegedBlockOnBehalfOf()) {
+      if (!nextFrame.isCallingDoPrivilegedBlockOnBehalfOfCaller()) {
         break;
       }
       this.privilegedStackIndex++;
@@ -495,7 +499,7 @@ class SecurityCheckInformation extends SecuritySolution implements SecurityFailu
             .filter(p -> p.matchAllPermissions(permissionInfos))
             .map(Pattern::new)
             .collect(Collectors.toList());
-    boolean foundFailedBundle = false;
+    boolean foundFailedDomain = false;
 
     for (int i = 0; i < stack.size(); i++) {
       final StackFrameInformation frame = stack.get(i);
@@ -517,24 +521,24 @@ class SecurityCheckInformation extends SecuritySolution implements SecurityFailu
                 .findFirst()
                 .orElse(null);
       }
-      final String bundle = frame.getBundle();
+      final String domain = frame.getDomain();
 
-      if ((bundle != null) && !domains.contains(bundle)) {
-        domains.add(bundle);
+      if ((domain != null) && !domains.contains(domain)) {
+        domains.add(domain);
       }
-      if (!foundFailedBundle) {
+      if (!foundFailedDomain) {
         if (!frame.isPrivileged(privilegedDomains)) { // found the place where it will fail!!!!
-          foundFailedBundle = true;
+          foundFailedDomain = true;
           this.failedStackIndex = i;
-          this.failedDomainIndex = domains.indexOf(bundle);
+          this.failedDomainIndex = domains.indexOf(domain);
         } else {
           // keep track of the fact that this granted domain helped if it was one
           // that we artificially granted the permission to
-          grantedDomains.remove(frame.getBundle());
+          grantedDomains.remove(frame.getDomain());
         }
       }
     }
-    return foundFailedBundle;
+    return foundFailedDomain;
   }
 
   private List<SecuritySolution> analyze0(Debug debug) {
@@ -558,7 +562,7 @@ class SecurityCheckInformation extends SecuritySolution implements SecurityFailu
   }
 
   private void analyzeDoPrivilegedBlocks(Debug debug) {
-    // now check if we could extend the privileges of a bundle that comes up
+    // now check if we could extend the privileges of a domain that comes up
     // before which already has the permission
     for (int i = failedStackIndex - 1; i >= 0; i--) {
       final StackFrameInformation frame = stack.get(i);
@@ -570,7 +574,7 @@ class SecurityCheckInformation extends SecuritySolution implements SecurityFailu
   }
 
   @SuppressWarnings("squid:S106" /* this is a console application */)
-  private void dumpPermission() {
+  protected void dumpPermission() {
     if (isAcceptable()) {
       System.out.println(ACDebugger.PREFIX + "Acceptable permissions:");
       System.out.println(ACDebugger.PREFIX + "    " + getAcceptablePermissions());
@@ -583,13 +587,20 @@ class SecurityCheckInformation extends SecuritySolution implements SecurityFailu
   }
 
   @SuppressWarnings("squid:S106" /* this is a console application */)
-  private void dumpHowToFix() {
-    if (!grantedBundles.isEmpty()) {
-      final String bs = (grantedBundles.size() == 1) ? "" : "s";
+  protected void dumpHowToFix(boolean osgi) {
+    if (!grantedDomains.isEmpty()) {
+      final String ds = (grantedDomains.size() == 1) ? "" : "s";
       final String ps = (permissionInfos.size() == 1) ? "" : "s";
 
-      System.out.println(ACDebugger.PREFIX + "Granting permission" + ps + " to bundle" + bs + ":");
-      grantedBundles.forEach(d -> System.out.println(ACDebugger.PREFIX + "    " + d));
+      System.out.println(
+          ACDebugger.PREFIX
+              + "Granting permission"
+              + ps
+              + " to "
+              + (osgi ? "bundle" : "domain")
+              + ds
+              + ":");
+      grantedDomains.forEach(d -> System.out.println(ACDebugger.PREFIX + "    " + d));
     }
     if (!doPrivileged.isEmpty()) {
       System.out.println(ACDebugger.PREFIX + "Extending privileges at:");
@@ -598,9 +609,12 @@ class SecurityCheckInformation extends SecuritySolution implements SecurityFailu
   }
 
   @SuppressWarnings("squid:S106" /* this is a console application */)
-  private void dumpContext() {
+  private void dumpContext(boolean osgi) {
     System.out.println(ACDebugger.PREFIX + "Context:");
-    System.out.println(ACDebugger.PREFIX + "     " + StackFrameInformation.BUNDLE0);
+    System.out.println(
+        ACDebugger.PREFIX
+            + "     "
+            + (osgi ? StackFrameInformation.BUNDLE0 : StackFrameInformation.BOOT_DOMAIN));
     for (int i = 0; i < domains.size(); i++) {
       final String domain = domains.get(i);
 
@@ -617,7 +631,7 @@ class SecurityCheckInformation extends SecuritySolution implements SecurityFailu
   }
 
   @SuppressWarnings("squid:S106" /* this is a console application */)
-  private void dumpStack() {
+  private void dumpStack(boolean osgi) {
     System.out.println(ACDebugger.PREFIX + "Stack:");
     for (int i = 0; i < stack.size(); i++) {
       System.out.println(
@@ -626,7 +640,7 @@ class SecurityCheckInformation extends SecuritySolution implements SecurityFailu
               + ((i == failedStackIndex) ? "-->" : "   ")
               + " at "
               + (isAcceptable() && acceptablePattern.wasMatched(i) ? "#" : "")
-              + stack.get(i).toString(privilegedDomains));
+              + stack.get(i).toString(osgi, privilegedDomains));
       if ((privilegedStackIndex != -1) && (i == privilegedStackIndex)) {
         System.out.println(
             ACDebugger.PREFIX + "    ----------------------------------------------------------");
@@ -634,32 +648,36 @@ class SecurityCheckInformation extends SecuritySolution implements SecurityFailu
     }
   }
 
-  @SuppressWarnings("squid:S106" /* this is a console application */)
-  private void dump0() {
+  private void dump0(boolean osgi) {
     dumpPermission();
-    dumpHowToFix();
-    dumpContext();
-    dumpStack();
+    dumpHowToFix(osgi);
+    dumpContext(osgi);
+    dumpStack(osgi);
   }
 
   @SuppressWarnings("squid:S106" /* this is a console application */)
   private void dumpTroubleshootingInfo(Debug debug, String... msg) {
+    System.err.println(ACDebugger.PREFIX);
     System.err.println(ACDebugger.PREFIX + SecurityCheckInformation.DOUBLE_LINES);
     Stream.of(msg).map(ACDebugger.PREFIX::concat).forEach(System.err::println);
     System.err.println(
         ACDebugger.PREFIX
             + "PLEASE REPORT AN ISSUE WITH THE FOLLOWING INFORMATION AND INSTRUCTIONS");
-    System.err.println("ON HOW TO REPRODUCE IT");
+    System.err.println(ACDebugger.PREFIX + "ON HOW TO REPRODUCE IT");
     System.err.println(ACDebugger.PREFIX + SecurityCheckInformation.DOUBLE_LINES);
-    System.err.println(ACDebugger.PREFIX + "CURRENT DOMAIN CLASS: " + currentDomain.type().name());
-    System.err.println(ACDebugger.PREFIX + "CURRENT DOMAIN: " + currentDomain);
+    System.err.println(
+        ACDebugger.PREFIX + "CURRENT DOMAIN CLASS: " + currentDomainValue.type().name());
+    System.err.println(ACDebugger.PREFIX + "CURRENT DOMAIN: " + currentDomainValue);
     System.err.println(ACDebugger.PREFIX + "LOCAL 'i' VARIABLE: " + local_i);
     System.err.println(ACDebugger.PREFIX + "ACCESS CONTROL CONTEXT:");
     context.forEach(b -> System.err.println(ACDebugger.PREFIX + "  " + b));
     System.err.println(ACDebugger.PREFIX + "CONTEXT:");
-    System.err.println(ACDebugger.PREFIX + "  " + StackFrameInformation.BUNDLE0);
+    System.err.println(
+        ACDebugger.PREFIX
+            + "  "
+            + (debug.isOSGi() ? StackFrameInformation.BUNDLE0 : StackFrameInformation.BOOT_DOMAIN));
     for (int i = 0; i < domains.size(); i++) {
-      System.err.print(
+      System.err.println(
           ACDebugger.PREFIX
               + "  "
               + domains.get(i)
@@ -671,7 +689,7 @@ class SecurityCheckInformation extends SecuritySolution implements SecurityFailu
     for (int i = 0; i < stack.size(); i++) {
       System.err.println(ACDebugger.PREFIX + "  at " + stack.get(i));
       if ((privilegedStackIndex != -1) && (i == privilegedStackIndex)) {
-        System.out.println(
+        System.err.println(
             ACDebugger.PREFIX + "    ----------------------------------------------------------");
       }
     }

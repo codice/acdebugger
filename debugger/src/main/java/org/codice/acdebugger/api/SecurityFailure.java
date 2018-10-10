@@ -63,7 +63,8 @@ public interface SecurityFailure {
   /**
    * Dumps info about this security failure along with its solutions.
    *
+   * @param osgi <code>true</code> if attached to an OSGi container; <code>false</code> if not
    * @param prefix a prefix string to dump in fron of the first line
    */
-  public void dump(String prefix);
+  public void dump(boolean osgi, String prefix);
 }

@@ -85,6 +85,15 @@ public class Debugger {
   }
 
   /**
+   * Sets wether or not we are debugging an OSGi system.
+   *
+   * @param osgi <code>true</code> if we are debugging an OSGi system; <code>false</code> if not
+   */
+  public void setOSGi(boolean osgi) {
+    context.setOSGi(osgi);
+  }
+
+  /**
    * Sets the continuous mode for the debugger in which case it will not fail any security
    * exceptions detected and accumulate and report on all occurrences or if it will stop when the
    * first security failure is detected.
@@ -94,7 +103,7 @@ public class Debugger {
    *     detected security failure
    */
   public void setContinuous(boolean continuous) {
-    context.setContinuousMode(continuous);
+    context.setContinuous(continuous);
   }
 
   /**
@@ -172,12 +181,12 @@ public class Debugger {
     map.put(HOST_KEY, hostArg);
     this.debug = new DebugImpl(context, connector.attach(map));
     debug.virtualMachine().setDebugTraceMode(VirtualMachine.TRACE_NONE);
+    System.out.println(ACDebugger.PREFIX);
     System.out.println(ACDebugger.PREFIX + "Attached to:");
     Stream.of(debug.virtualMachine().description().split("[\r\n]"))
         .map("  "::concat)
         .map(ACDebugger.PREFIX::concat)
         .forEach(System.out::println);
-    System.out.println(ACDebugger.PREFIX);
     return this;
   }
 
@@ -226,8 +235,8 @@ public class Debugger {
       }
       line += " missing permissions";
     }
-    System.out.println(line);
     System.out.println(ACDebugger.PREFIX);
+    System.out.println(line);
     while (context.isRunning()) {
       final EventSet eventSet = evtQueue.remove();
       final EventIterator i = eventSet.eventIterator();

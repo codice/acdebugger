@@ -16,13 +16,13 @@ package org.codice.acdebugger;
 /** Service used for dynamically granting permissions. */
 public interface PermissionService {
   /**
-   * Grants the specified permission to the specified bundle.
+   * Grants the specified permission to the specified domain.
    *
-   * @param bundle the bundle name/location to whom the permission should be granted
+   * @param domain the bundle name or domain location to whom the permission should be granted
    * @param permission the permission to be granted in a standard policy format string
    *     representation
    * @throws Exception if a failure occurs while granting the given permission
    */
   @SuppressWarnings("squid:S00112" /* Interface used during debugging and meant to be generic */)
-  public void grantPermission(String bundle, String permission) throws Exception;
+  public void grantPermission(String domain, String permission) throws Exception;
 }

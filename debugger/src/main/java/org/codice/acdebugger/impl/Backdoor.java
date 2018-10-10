@@ -13,6 +13,8 @@
  */
 package org.codice.acdebugger.impl;
 
+import com.google.gson.reflect.TypeToken;
+import com.sun.jdi.ArrayReference;
 import com.sun.jdi.ClassType;
 import com.sun.jdi.Method;
 import com.sun.jdi.ObjectReference;
@@ -21,8 +23,11 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 import javax.annotation.Nullable;
+import org.codice.acdebugger.ACDebugger;
 import org.codice.acdebugger.api.Debug;
+import org.codice.acdebugger.api.ReflectionUtil;
 import org.codice.acdebugger.breakpoints.HasListenServicePermissionBreakpointProcessor;
+import org.codice.acdebugger.common.DomainInfo;
 import org.codice.acdebugger.common.JsonUtils;
 import org.codice.acdebugger.common.ServicePermissionInfo;
 
@@ -39,6 +44,10 @@ public class Backdoor {
   private Method getBundle;
 
   private Method getBundleVersion;
+
+  private Method getDomain;
+
+  private Method getDomainInfo;
 
   private Method getPermissionStrings;
 
@@ -64,57 +73,58 @@ public class Backdoor {
     if (backdoorReference == null) {
       throw new IllegalStateException("unable to locate backdoor instance");
     }
+    final ReflectionUtil reflection = debug.reflection();
+
     try {
       this.initializing = true;
       this.backdoorReference = backdoorReference;
       this.getBundle =
-          debug
-              .reflection()
-              .findMethod(
-                  this.backdoorReference.referenceType(),
-                  "getBundle",
-                  Backdoor.METHOD_SIGNATURE_OBJ_ARG_STRING_RESULT);
+          reflection.findMethod(
+              backdoorReference.referenceType(),
+              "getBundle",
+              Backdoor.METHOD_SIGNATURE_OBJ_ARG_STRING_RESULT);
       this.getBundleVersion =
-          debug
-              .reflection()
-              .findMethod(
-                  this.backdoorReference.referenceType(),
-                  "getBundleVersion",
-                  Backdoor.METHOD_SIGNATURE_OBJ_ARG_STRING_RESULT);
+          reflection.findMethod(
+              backdoorReference.referenceType(),
+              "getBundleVersion",
+              Backdoor.METHOD_SIGNATURE_OBJ_ARG_STRING_RESULT);
+      this.getDomain =
+          reflection.findMethod(
+              backdoorReference.referenceType(),
+              "getDomain",
+              "(Ljava/lang/Object;)Ljava/lang/String;");
+      this.getDomainInfo =
+          reflection.findMethod(
+              backdoorReference.referenceType(),
+              "getDomainInfo",
+              "(Ljava/lang/Object;Ljava/lang/Object;)Ljava/lang/String;");
       this.getPermissionStrings =
-          debug
-              .reflection()
-              .findMethod(
-                  this.backdoorReference.referenceType(),
-                  "getPermissionStrings",
-                  Backdoor.METHOD_SIGNATURE_OBJ_ARG_STRING_RESULT);
+          reflection.findMethod(
+              backdoorReference.referenceType(),
+              "getPermissionStrings",
+              Backdoor.METHOD_SIGNATURE_OBJ_ARG_STRING_RESULT);
       this.grantPermission =
-          debug
-              .reflection()
-              .findMethod(
-                  this.backdoorReference.referenceType(),
-                  "grantPermission",
-                  "(Ljava/lang/String;Ljava/lang/String;)V");
+          reflection.findMethod(
+              backdoorReference.referenceType(),
+              "grantPermission",
+              "(Ljava/lang/String;Ljava/lang/String;)V");
       this.hasPermission =
-          debug
-              .reflection()
-              .findMethod(
-                  this.backdoorReference.referenceType(),
-                  "hasPermission",
-                  "(Ljava/lang/Object;Ljava/lang/Object;)Z");
+          reflection.findMethod(
+              backdoorReference.referenceType(),
+              "hasPermission",
+              "(Ljava/lang/Object;Ljava/lang/Object;)Z");
       this.getServicePermissionInfoAndGrant =
-          debug
-              .reflection()
-              .findMethod(
-                  this.backdoorReference.referenceType(),
-                  "getServicePermissionInfoAndGrant",
-                  "(Ljava/lang/String;Ljava/lang/Object;Ljava/lang/Object;Z)Ljava/lang/String;");
-      System.out.println("AC Debugger: Backdoor discovered");
+          reflection.findMethod(
+              backdoorReference.referenceType(),
+              "getServicePermissionInfoAndGrant",
+              "(Ljava/lang/String;Ljava/lang/Object;Ljava/lang/Object;Z)Ljava/lang/String;");
+      System.out.println(ACDebugger.PREFIX);
+      System.out.println(ACDebugger.PREFIX + "Backdoor discovered");
     } finally {
       this.initializing = false;
     }
     // now register the Eclipse service permission breakpoint, now that we know the policy has been
-    // loaded since the backdoor
+    // loaded since the backdoor is initialized
     if (debug.isMonitoringService()) {
       try {
         debug.add(new HasListenServicePermissionBreakpointProcessor());
@@ -190,20 +200,56 @@ public class Backdoor {
   }
 
   /**
-   * Temporarily grants a bundle a given permission if not already granted.
+   * Gets a domain location for the given domain.
    *
    * @param debug the current debug information
-   * @param bundle the bundle to grant the permission to
+   * @param domain the domain for which to find the corresponding location
+   * @return the corresponding domain location or <code>null</code> if unable to find it or if none
+   *     defined
+   */
+  @Nullable
+  public synchronized String getDomain(Debug debug, ObjectReference domain) {
+    findBackdoor(debug); // make sure the backdoor is enabled
+    if (getDomain == null) {
+      throw new IllegalStateException("getDomain() is not supported by the backdoor");
+    }
+    return debug.reflection().invoke(backdoorReference, getDomain, domain);
+  }
+
+  /**
+   * Gets domain information for the given array of domains and permission.
+   *
+   * @param debug the current debug information
+   * @param domains the array of domains for which to find the corresponding information
+   * @param permission the permission for which to verify if the domains are granted it
+   * @return a corresponding list of domain information
+   */
+  public synchronized List<DomainInfo> getDomainInfo(
+      Debug debug, ArrayReference domains, Object permission) {
+    findBackdoor(debug); // make sure the backdoor is enabled
+    if (getDomainInfo == null) {
+      throw new IllegalStateException("getDomainInfo() is not supported by the backdoor");
+    }
+    return JsonUtils.fromJson(
+        debug.reflection().invoke(backdoorReference, getDomainInfo, domains, permission),
+        new TypeToken<List<DomainInfo>>() {}.getType());
+  }
+
+  /**
+   * Temporarily grants a domain a given permission if not already granted.
+   *
+   * @param debug the current debug information
+   * @param domain the bundle name or domain location to grant the permission to
    * @param permission the permission to be granted
    * @throws IllegalStateException if the backdoor is initializing or doesn't support this method
    * @throws Error if an error occurred while invoking the backdoor's method
    */
-  public synchronized void grantPermission(Debug debug, String bundle, String permission) {
+  public synchronized void grantPermission(Debug debug, String domain, String permission) {
     findBackdoor(debug); // make sure the backdoor is enabled
     if (grantPermission == null) {
       throw new IllegalStateException("grantPermission() is not supported by the backdoor");
     }
-    debug.reflection().invoke(backdoorReference, grantPermission, bundle, permission);
+    debug.reflection().invoke(backdoorReference, grantPermission, domain, permission);
   }
 
   /**
@@ -297,7 +343,7 @@ public class Backdoor {
 
   private ObjectReference getInstance(Debug debug, ClassType clazz) {
     try {
-      return debug.reflection().get(clazz.classObject(), "instance", Backdoor.CLASS_SIGNATURE);
+      return debug.reflection().getStatic(clazz, "instance", Backdoor.CLASS_SIGNATURE);
     } catch (Exception e) {
       return null;
     }

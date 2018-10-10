@@ -30,6 +30,8 @@ import org.codice.acdebugger.api.SecuritySolution;
 public class DebugContext {
   private final Backdoor backdoor = new Backdoor();
 
+  private final SystemProperties systemProperties = new SystemProperties();
+
   private final Map<String, Set<String>> permissions = new ConcurrentHashMap<>();
 
   private final Map<String, Object> map = new ConcurrentHashMap<>();
@@ -37,6 +39,8 @@ public class DebugContext {
   private final List<SecurityFailure> failures = new ArrayList<>();
 
   private int count = 0;
+
+  private volatile boolean osgi = true;
 
   private volatile boolean continuous = false;
 
@@ -62,68 +66,77 @@ public class DebugContext {
   }
 
   /**
-   * Checks if a bundle has or was temporarily granted a given permission.
+   * Accesses system properties util functionnality.
    *
-   * @param bundle the bundle to check for
+   * @return a system properties utility for the attached VM
+   */
+  public SystemProperties properties() {
+    return systemProperties;
+  }
+
+  /**
+   * Checks if a domain has or was temporarily granted a given permission.
+   *
+   * @param domain the bundle name or domain location to check for
    * @param permission the permission to check for
-   * @return <code>true</code> if the bundle has or was granted the specified permission; <code>
+   * @return <code>true</code> if the domain has or was granted the specified permission; <code>
    *     false</code> if not
    */
-  public boolean hasPermission(String bundle, String permission) {
-    if (bundle == null) { // bundle-0 always has all permissions
+  public boolean hasPermission(String domain, String permission) {
+    if (domain == null) { // bundle-0 always has all permissions
       return true;
     }
     return permissions
-        .computeIfAbsent(bundle, b -> new ConcurrentSkipListSet<>())
+        .computeIfAbsent(domain, d -> new ConcurrentSkipListSet<>())
         .contains(permission);
   }
 
   /**
-   * Checks if a bundle is or was temporarily granted the given permissions.
+   * Checks if a domain is or was temporarily granted the given permissions.
    *
-   * @param bundle the bundle to check for
+   * @param domain the bundle name or domain location to check for
    * @param permissions the permission strings to check for
    * @return <code>true</code> if the bundle is or was granted the specified permissions; <code>
    *     false</code> if not
    */
-  public boolean hasPermissions(String bundle, Set<String> permissions) {
-    if (bundle == null) { // bundle-0 always has all permissions
+  public boolean hasPermissions(String domain, Set<String> permissions) {
+    if (domain == null) { // bundle-0 always has all permissions
       return true;
     }
     return this.permissions
-        .computeIfAbsent(bundle, b -> new ConcurrentSkipListSet<>())
+        .computeIfAbsent(domain, d -> new ConcurrentSkipListSet<>())
         .containsAll(permissions);
   }
 
   /**
-   * Temporarily grants a bundle a given permission if not already granted.
+   * Temporarily grants a domain a given permission if not already granted.
    *
-   * @param bundle the bundle to grant the permission for
+   * @param domain the bundle name or domain location to grant the permission for
    * @param permission the permission to be granted
-   * @return <code>true</code> if the permission was granted to the specified bundle; <code>false
+   * @return <code>true</code> if the permission was granted to the specified domain; <code>false
    *     </code> if it was already granted
    */
-  public boolean grantPermission(String bundle, String permission) {
-    if (bundle == null) { // bundle-0 always has all permissions
+  public boolean grantPermission(String domain, String permission) {
+    if (domain == null) { // bundle-0 always has all permissions
       return false;
     }
-    return permissions.computeIfAbsent(bundle, b -> new ConcurrentSkipListSet<>()).add(permission);
+    return permissions.computeIfAbsent(domain, b -> new ConcurrentSkipListSet<>()).add(permission);
   }
 
   /**
-   * Temporarily grants a bundle a set of permissions if not already granted.
+   * Temporarily grants a domain a set of permissions if not already granted.
    *
-   * @param bundle the bundle to grant the permissions to
+   * @param domain the bundle name or domain location to grant the permissions to
    * @param permissions the permissions to be granted
-   * @return <code>true</code> if the permissions were granted to the specified bundle; <code>false
+   * @return <code>true</code> if the permissions were granted to the specified domain; <code>false
    *     </code> if at least one was already granted
    */
-  public boolean grantPermissions(String bundle, Set<String> permissions) {
-    if (bundle == null) {
+  public boolean grantPermissions(String domain, Set<String> permissions) {
+    if (domain == null) {
       return false;
     }
     final Set<String> cache =
-        this.permissions.computeIfAbsent(bundle, b -> new ConcurrentSkipListSet<>());
+        this.permissions.computeIfAbsent(domain, d -> new ConcurrentSkipListSet<>());
 
     return permissions.stream().map(cache::add).reduce(true, Boolean::logicalAnd);
   }
@@ -168,6 +181,24 @@ public class DebugContext {
   }
 
   /**
+   * Checks if we are debugging an OSGi system.
+   *
+   * @return <code>true</code> if we are debugging an OSGi system; <code>false</code> if not
+   */
+  public boolean isOSGi() {
+    return osgi;
+  }
+
+  /**
+   * Sets wether or not we are debugging an OSGi system.
+   *
+   * @param osgi <code>true</code> if we are debugging an OSGi system; <code>false</code> if not
+   */
+  public void setOSGi(boolean osgi) {
+    this.osgi = osgi;
+  }
+
+  /**
    * Checks if the debugger is running in continuous mode where it will not fail any security
    * exceptions detected and accumulate and report on all occurrences or if it will stop when the
    * first security failure is detected.
@@ -188,7 +219,7 @@ public class DebugContext {
    *     continue as if no errors had occurred; <code>false</code> if i should stop after the first
    *     detected security failure
    */
-  public void setContinuousMode(boolean continuous) {
+  public void setContinuous(boolean continuous) {
     this.continuous = continuous;
   }
 
@@ -344,7 +375,7 @@ public class DebugContext {
       return;
     }
     if (debug) {
-      failure.dump(continuous ? String.format("%04d - ", (++count)) : "");
+      failure.dump(osgi, continuous ? String.format("%04d - ", (++count)) : "");
     } else {
       if (continuous) {
         System.out.printf("%s%04d - %s {%n", ACDebugger.PREFIX, (++count), failure);
@@ -379,7 +410,7 @@ public class DebugContext {
     // of this again (if not in continuous mode, then we don't really care about that)
     grantMissingPermissionsIfPossible(solutions);
     if (debug) {
-      failure.dump(continuous ? String.format("%04d - ", (++count)) : "");
+      failure.dump(osgi, continuous ? String.format("%04d - ", (++count)) : "");
     } else {
       if (continuous) {
         System.out.printf("%s%04d - %s {%n", ACDebugger.PREFIX, (++count), failure);
@@ -395,7 +426,7 @@ public class DebugContext {
       } else {
         System.out.println(ACDebugger.PREFIX + "    Solution:");
       }
-      solutions.forEach(s -> s.print("    "));
+      solutions.forEach(s -> s.print(osgi, "    "));
       System.out.println(ACDebugger.PREFIX + "}");
       if (!continuous) {
         this.run = false;
@@ -409,10 +440,10 @@ public class DebugContext {
     // of this again (if not in continuous mode, then we don't really care about that)
     if (continuous && (solutions.size() == 1)) {
       final SecuritySolution solution = solutions.get(0);
-      final Set<String> grantedBundles = solution.getGrantedBundles();
+      final Set<String> grantedDomains = solution.getGrantedDomains();
 
-      if (!grantedBundles.isEmpty() && solution.getDoPrivilegedLocations().isEmpty()) {
-        solution.getGrantedBundles().forEach(b -> grantPermissions(b, solution.getPermissions()));
+      if (!grantedDomains.isEmpty() && solution.getDoPrivilegedLocations().isEmpty()) {
+        solution.getGrantedDomains().forEach(d -> grantPermissions(d, solution.getPermissions()));
       }
     }
   }

@@ -282,10 +282,7 @@ public class ReflectionUtil {
     if (obj == null) {
       return null;
     }
-    final ReferenceType type =
-        (obj instanceof ClassObjectReference)
-            ? ((ClassObjectReference) obj).reflectedType()
-            : obj.referenceType();
+    final ReferenceType type = obj.referenceType();
 
     return get(obj, type.fieldByName(name), signature);
   }
@@ -320,6 +317,83 @@ public class ReflectionUtil {
   }
 
   /**
+   * Retrieves the value of a static field for a given class given its name while unwrapping any
+   * primitive values or strings; all others are returned as {@link ObjectReference} objects.
+   *
+   * @param <T> the type of object or object reference returned
+   * @param clazz the class where to retrieve a static field value
+   * @param name the name of the field to retrieve its value
+   * @param signature the signature of the class the value must be an instance of or <code>null
+   *     </code> to return the current value no matter what
+   * @return the corresponding value or unwrapped object or <code>null</code> if none found, if not
+   *     an instance of the given class signature, if <code>clazz</code> is <code>null</code>, or if
+   *     it the current value is <code>null</code> to start with
+   */
+  @Nullable
+  public <T> T getStatic(@Nullable ClassType clazz, String name, @Nullable String signature) {
+    if (clazz == null) {
+      return null;
+    }
+    final ReferenceType type = clazz.classObject().reflectedType();
+
+    return getStatic(clazz, type.fieldByName(name), signature);
+  }
+
+  /**
+   * Retrieves the value of a static field for a given class while unwrapping any primitive values
+   * or strings; all others are returned as {@link ObjectReference} objects.
+   *
+   * @param <T> the type of object or object reference returned
+   * @param clazz the class where to retrieve a static field value
+   * @param field the field to retrieve its value
+   * @param signature the signature of the class the value must be an instance of or <code>null
+   *     </code> to return the current value no matter what
+   * @return the corresponding value or unwrapped object or <code>null</code> if none found, if not
+   *     an instance of the given class signature, if <code>clazz</code> or <code>field</code> is
+   *     <code>null</code>, or if it the current value is <code>null</code> to start with
+   */
+  @Nullable
+  public <T> T getStatic(
+      @Nullable ClassType clazz, @Nullable Field field, @Nullable String signature) {
+    if ((clazz != null) && (field != null)) {
+      final Value value = clazz.getValue(field);
+
+      if ((value != null) && ((signature == null) || isInstance(signature, value))) {
+        return (T) fromMirror(value);
+      }
+    }
+    return null;
+  }
+
+  /**
+   * Invokes a method on a given object given its name, signature and arguments and returns the
+   * result while unwrapping any primitive values or strings or return <code>null</code> if the
+   * method cannot be found.
+   *
+   * @param <T> the type of object or object reference returned
+   * @param obj the object where to invoke the method
+   * @param name the name of the method to invoke
+   * @param signature the signature of the method to invoke
+   * @param args the arguments for the method (primitives and strings are automatically wrapped; all
+   *     others have to be {@link ObjectReference} objects)
+   * @return the result value or unwrapped object or <code>null</code> if the result or <code>obj
+   *     </code> is <code>null</code> or again if the method cannot be found
+   * @throws Error if a failure occurs while invoking the method or if the method could not be
+   *     located
+   */
+  @Nullable
+  public <T> T invokeAndReturnNullIfNotFound(
+      @Nullable ObjectReference obj, String name, String signature, Object... args) {
+    if (obj == null) {
+      return null;
+    }
+    final ReferenceType type = obj.referenceType();
+    final Method method = findMethod(type, name, signature);
+
+    return (method != null) ? invoke(obj, method, args) : null;
+  }
+
+  /**
    * Invokes a method on a given object given its name, signature and arguments and returns the
    * result while unwrapping any primitive values or strings.
    *
@@ -341,10 +415,7 @@ public class ReflectionUtil {
     if (obj == null) {
       return null;
     }
-    final ReferenceType type =
-        (obj instanceof ClassObjectReference)
-            ? ((ClassObjectReference) obj).reflectedType()
-            : obj.referenceType();
+    final ReferenceType type = obj.referenceType();
     final Method method = findMethod(type, name, signature);
 
     if (method == null) {
@@ -400,6 +471,92 @@ public class ReflectionUtil {
       return (T)
           fromMirror(
               obj.invokeMethod(
+                  getThread(), method, values, ObjectReference.INVOKE_SINGLE_THREADED));
+    } catch (Exception e) {
+      throw new Error(e);
+    } finally {
+      prefs.forEach(StringReference::enableCollection);
+    }
+  }
+
+  /**
+   * Invokes a static method on a given class given its name, signature and arguments and returns
+   * the result while unwrapping any primitive values or strings.
+   *
+   * @param <T> the type of object or object reference returned
+   * @param clazz the class where to invoke the static method
+   * @param name the name of the method to invoke
+   * @param signature the signature of the method to invoke
+   * @param args the arguments for the method (primitives and strings are automatically wrapped; all
+   *     others have to be {@link ObjectReference} objects)
+   * @return the result value or unwrapped object or <code>null</code> if the result or <code>clazz
+   *     </code> is <code>null</code>
+   * @throws Error if a failure occurs while invoking the method or if the method could not be
+   *     located
+   */
+  @Nullable
+  @SuppressWarnings("squid:S00112" /* Not meant to be catchable so keeping it generic */)
+  public <T> T invokeStatic(
+      @Nullable ClassType clazz, String name, String signature, Object... args) {
+    if (clazz == null) {
+      return null;
+    }
+    final ReferenceType type = clazz.classObject().reflectedType();
+    final Method method = findMethod(type, name, signature);
+
+    if (method == null) {
+      throw new Error(
+          "could not find method '" + name + "[" + signature + "]' for: " + type.name());
+    }
+    return invokeStatic(clazz, method, args);
+  }
+
+  /**
+   * Invokes a static method on a given class with the specified arguments and returns the result
+   * while unwrapping any primitive values or strings.
+   *
+   * @param <T> the type of object or object reference returned
+   * @param clazz the class where to invoke the static method
+   * @param method the method to invoke
+   * @param args the arguments for the method (primitives and strings are automatically wrapped; all
+   *     others have to be {@link ObjectReference} objects)
+   * @return the result value or unwrapped object or <code>null</code> if the result or <code>clazz
+   *     </code> or <code>method</code> is <code>null</code>
+   * @throws Error if a failure occurs while invoking the method of if the method could not be
+   *     located
+   */
+  @SuppressWarnings("squid:S00112" /* Not meant to be catchable so keeping it generic */)
+  @Nullable
+  public <T> T invokeStatic(@Nullable ClassType clazz, @Nullable Method method, Object... args) {
+    if ((clazz == null) || (method == null)) {
+      return null;
+    }
+    final List<StringReference> prefs = new ArrayList<>(args.length);
+
+    try {
+      // if we are not using INVOKE_SINGLE_THREADED, then other threads starts which means we
+      // could get another breakpoint event which will be processed in parallel and that means
+      // that us invoking code here will resume all threads which will create
+      // <sun.jdi.InvalidStackFrameException: Thread has been resumed> for other breakpoint
+      // processors but on the other end, if we use INVOKE_SINGLE_THREADED, we might create a
+      // deadlock if the code we are calling requires a lock that another suspended thread has but
+      // again this means that if that thread is currently suspended because of a breakpoint, it
+      // will now be resumed preventing us from being able to process it.
+      final List<Value> values = new ArrayList<>(args.length);
+
+      for (final Object arg : args) {
+        if (arg instanceof String) {
+          final StringReference pref = protect(() -> toMirror(arg));
+
+          prefs.add(pref);
+          values.add(pref);
+        } else {
+          values.add(toMirror(arg));
+        }
+      }
+      return (T)
+          fromMirror(
+              clazz.invokeMethod(
                   getThread(), method, values, ObjectReference.INVOKE_SINGLE_THREADED));
     } catch (Exception e) {
       throw new Error(e);
@@ -537,11 +694,16 @@ public class ReflectionUtil {
    * machine.
    *
    * @param obj the reference to the object to gets its string representation
-   * @return the corresponding string representation
+   * @return the corresponding string representation or <code>null</code> if <code>obj</code> is
+   *     <code>null</code>
    * @throws Error if a failure occurs while invoking the <code>toString()</code> method
    */
   @SuppressWarnings("squid:S00112" /* Forced to by the Java debugger API */)
-  public String toString(ObjectReference obj) {
+  @Nullable
+  public String toString(@Nullable ObjectReference obj) {
+    if (obj == null) {
+      return null;
+    }
     return invoke(obj, "toString", ReflectionUtil.METHOD_SIGNATURE_NO_ARGS_STRING_RESULT);
   }
 

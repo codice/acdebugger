@@ -29,7 +29,7 @@ public class SecuritySolution implements Comparable<SecuritySolution> {
   protected final Set<String> permissionInfos;
 
   /** Bundles that are granted the permission */
-  protected final Set<String> grantedBundles;
+  protected final Set<String> grantedDomains;
 
   /** List of locations where to add doPrivileged() blocks */
   protected final List<StackFrameInformation> doPrivileged;
@@ -38,15 +38,15 @@ public class SecuritySolution implements Comparable<SecuritySolution> {
    * Constructs a solution.
    *
    * @param permissionInfos the failed permissions info
-   * @param grantedBundles bundles that are granted the permission
+   * @param grantedDomains domains that are granted the permission
    * @param doPrivileged list of locations where to add doPrivileged() blocks
    */
   public SecuritySolution(
       Set<String> permissionInfos,
-      Set<String> grantedBundles,
+      Set<String> grantedDomains,
       List<StackFrameInformation> doPrivileged) {
     this.permissionInfos = permissionInfos;
-    this.grantedBundles = grantedBundles;
+    this.grantedDomains = grantedDomains;
     this.doPrivileged = doPrivileged;
   }
 
@@ -57,7 +57,7 @@ public class SecuritySolution implements Comparable<SecuritySolution> {
    */
   protected SecuritySolution(SecuritySolution solution) {
     this.permissionInfos = solution.permissionInfos;
-    this.grantedBundles = new LinkedHashSet<>(solution.grantedBundles);
+    this.grantedDomains = new LinkedHashSet<>(solution.grantedDomains);
     this.doPrivileged = new ArrayList<>(solution.doPrivileged);
   }
 
@@ -71,12 +71,12 @@ public class SecuritySolution implements Comparable<SecuritySolution> {
   }
 
   /**
-   * Gets the bundles that have to be given permissions for this solution.
+   * Gets the domains that have to be given permissions for this solution.
    *
-   * @return bundles requiring permissions for this solution
+   * @return domains requiring permissions for this solution
    */
-  public Set<String> getGrantedBundles() {
-    return Collections.unmodifiableSet(grantedBundles);
+  public Set<String> getGrantedDomains() {
+    return Collections.unmodifiableSet(grantedDomains);
   }
 
   /**
@@ -88,44 +88,68 @@ public class SecuritySolution implements Comparable<SecuritySolution> {
     return Collections.unmodifiableList(doPrivileged);
   }
 
-  /** Prints information about this solution. */
-  public void print() {
-    print("");
+  /**
+   * Prints information about this solution.
+   *
+   * @param osgi <code>true</code> if attached to an OSGi container; <code>false</code> if not
+   */
+  public void print(boolean osgi) {
+    print(osgi, "");
   }
 
   /**
    * Prints information about this solution.
    *
+   * @param osgi <code>true</code> if attached to an OSGi container; <code>false</code> if not
    * @param prefix a prefix string to prepend to each printed line
    */
   @SuppressWarnings("squid:S106" /* this is a console application */)
-  public void print(String prefix) {
+  public void print(boolean osgi, String prefix) {
     System.out.println(ACDebugger.PREFIX + prefix + "{");
     final String and;
 
-    if (!grantedBundles.isEmpty()) {
-      final String s = (permissionInfos.size() == 1) ? "" : "s";
+    if (!grantedDomains.isEmpty()) {
+      if (osgi) {
+        System.out.println(
+            ACDebugger.PREFIX
+                + prefix
+                + "    Add the following permission block to the appropriate policy file:");
+        System.out.println(
+            ACDebugger.PREFIX
+                + prefix
+                + "        grant codeBase \"file:/"
+                + grantedDomains.stream().sorted().collect(Collectors.joining("/"))
+                + "\" {");
+        permissionInfos
+            .stream()
+            .sorted()
+            .forEach(
+                p ->
+                    System.out.println(
+                        ACDebugger.PREFIX + prefix + "            permission " + p + ";"));
+        System.out.println(ACDebugger.PREFIX + prefix + "        }");
+      } else {
+        final String s = (grantedDomains.size() > 1) ? "s" : "";
 
-      System.out.println(
-          ACDebugger.PREFIX
-              + prefix
-              + "    Add the following permission"
-              + s
-              + " to the appropriate policy file:");
-      System.out.println(
-          ACDebugger.PREFIX
-              + prefix
-              + "        grant codeBase \"file:/"
-              + grantedBundles.stream().sorted().collect(Collectors.joining("/"))
-              + "\" {");
-      permissionInfos
-          .stream()
-          .sorted()
-          .forEach(
-              p ->
-                  System.out.println(
-                      ACDebugger.PREFIX + prefix + "            permission " + p + ";"));
-      System.out.println(ACDebugger.PREFIX + prefix + "        }");
+        System.out.println(
+            ACDebugger.PREFIX
+                + prefix
+                + "    Add the following permission block"
+                + s
+                + " to the appropriate policy file:");
+        for (final String location : grantedDomains) {
+          System.out.println(
+              ACDebugger.PREFIX + prefix + "        grant codeBase \"" + location + "\" {");
+          permissionInfos
+              .stream()
+              .sorted()
+              .forEach(
+                  p ->
+                      System.out.println(
+                          ACDebugger.PREFIX + prefix + "            permission " + p + ";"));
+          System.out.println(ACDebugger.PREFIX + prefix + "        }");
+        }
+      }
       and = "and a";
     } else {
       and = "A";
@@ -137,7 +161,7 @@ public class SecuritySolution implements Comparable<SecuritySolution> {
               + "    "
               + and
               + "dd an AccessController.doPrivileged() block around:");
-      doPrivileged.forEach(f -> System.out.println(prefix + "        " + f));
+      doPrivileged.forEach(f -> System.out.println(ACDebugger.PREFIX + prefix + "        " + f));
     }
     System.out.println(ACDebugger.PREFIX + prefix + "}");
   }
@@ -147,14 +171,14 @@ public class SecuritySolution implements Comparable<SecuritySolution> {
     if (s == this) {
       return 0;
     }
-    // compare how many bundles we have to grant the permissions to
+    // compare how many domains we have to grant the permissions to
     // we favor options where we have to grant the least number of permissions
-    int d = compareSizes(grantedBundles, s.grantedBundles);
+    int d = compareSizes(grantedDomains, s.grantedDomains);
 
     if (d != 0) {
       return d;
     }
-    if (!grantedBundles.isEmpty()) {
+    if (!grantedDomains.isEmpty()) {
       // compare how many permissions we have to grant and favor the least number of permissions
       d = compareSizes(permissionInfos, s.permissionInfos);
       if (d != 0) {
@@ -178,7 +202,7 @@ public class SecuritySolution implements Comparable<SecuritySolution> {
 
   @Override
   public final int hashCode() {
-    return Objects.hash(permissionInfos, grantedBundles, doPrivileged);
+    return Objects.hash(permissionInfos, grantedDomains, doPrivileged);
   }
 
   @Override
@@ -189,7 +213,7 @@ public class SecuritySolution implements Comparable<SecuritySolution> {
       final SecuritySolution s = (SecuritySolution) obj;
 
       return permissionInfos.equals(s.permissionInfos)
-          && grantedBundles.equals(s.grantedBundles)
+          && grantedDomains.equals(s.grantedDomains)
           && doPrivileged.equals(s.doPrivileged);
     }
     return false;

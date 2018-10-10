@@ -22,6 +22,7 @@ import java.util.function.Supplier;
 import javax.annotation.Nullable;
 import org.codice.acdebugger.impl.Backdoor;
 import org.codice.acdebugger.impl.DebugContext;
+import org.codice.acdebugger.impl.SystemProperties;
 
 /** This class keeps information about the current debugging session/callback. */
 @SuppressWarnings("squid:S1191" /* Using the Java debugger API */)
@@ -94,6 +95,15 @@ public abstract class Debug {
   }
 
   /**
+   * Accesses system properties util functionnality.
+   *
+   * @return a system properties utility for the attached VM
+   */
+  public SystemProperties properties() {
+    return context.properties();
+  }
+
+  /**
    * Accesses reflection-like functionality.
    *
    * @return a reflection instance onto which reflection-type methods can be invoked
@@ -112,12 +122,30 @@ public abstract class Debug {
   }
 
   /**
+   * Accesses location-specific functionality (i.e. {@link BundleUtil} or {@link DomainUtil}).
+   *
+   * @return a location utility instance onto which location-specific methods can be invoked
+   */
+  public LocationUtil locations() {
+    return isOSGi() ? bundles() : domains();
+  }
+
+  /**
    * Accesses bundle-specific functionality.
    *
    * @return a bundle utility instance onto which bundle-specific methods can be invoked
    */
   public BundleUtil bundles() {
     return new BundleUtil(this);
+  }
+
+  /**
+   * Accesses domain-specific functionality.
+   *
+   * @return a domain utility instance onto which domain-specific methods can be invoked
+   */
+  public DomainUtil domains() {
+    return new DomainUtil(this);
   }
 
   /**
@@ -179,6 +207,15 @@ public abstract class Debug {
    */
   public <T> void put(String key, T obj) {
     context.put(key, obj);
+  }
+
+  /**
+   * Checks if we are debugging an OSGi system.
+   *
+   * @return <code>true</code> if we are debugging an OSGi system; <code>false</code> if not
+   */
+  public boolean isOSGi() {
+    return context.isOSGi();
   }
 
   /**

@@ -12,7 +12,9 @@
  *
  **/
 -->
-<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
 
     <parent>
@@ -46,12 +48,8 @@
             <artifactId>org.apache.servicemix.bundles.jsr305</artifactId>
         </dependency>
         <dependency>
-            <groupId>io.fastjson</groupId>
-            <artifactId>boon</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>com.google.guava</groupId>
-            <artifactId>guava</artifactId>
+            <groupId>com.google.code.gson</groupId>
+            <artifactId>gson</artifactId>
         </dependency>
     </dependencies>
 
@@ -66,12 +64,7 @@
                         <Bundle-SymbolicName>${project.artifactId}</Bundle-SymbolicName>
                         <Bundle-Vendor>Codice</Bundle-Vendor>
                         <Bundle-Activator>org.codice.acdebugger.backdoor.Backdoor</Bundle-Activator>
-                        <Embed-Dependency>acdebugger-common, boon</Embed-Dependency>
-                        <Import-Package> <!-- imports specific as optional for embedding boon -->
-                            com.sun.management;resolution:=optional,
-                            sun.misc;resolution:=optional,
-                            *
-                        </Import-Package>
+                        <Embed-Dependency>acdebugger-common, gson</Embed-Dependency>
                         <Require-Capability>
                             osgi.service;filter:="(objectClass=org.codice.acdebugger.PermissionService)";effective:=active;resolution:=optional
                         </Require-Capability>

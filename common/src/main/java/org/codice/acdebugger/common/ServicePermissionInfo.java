@@ -15,6 +15,7 @@ package org.codice.acdebugger.common;
 
 import java.security.Permission;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.Set;
 import javax.annotation.Nullable;
 
@@ -24,27 +25,27 @@ public class ServicePermissionInfo {
    * Set of permission strings corresponding to the service permission this information was created
    * for.
    */
-  @Nullable // only because Boon may not set it as it bypasses our ctor and the final keyword
-  private final Set<String> permissionStrings;
+  @Nullable // only because Gson may set it to null
+  private Set<String> permissionStrings;
 
   /**
    * The {@link java.security.ProtectionDomain#implies(Permission)} result from the requested domain
    * and service permission.
    */
-  private final boolean implies;
+  private boolean implies;
 
   /**
    * A set of permission strings corresponding to the given permission which were individually
    * checked using {@link java.security.ProtectionDomain#implies(Permission)} and returned <code>
    * true</code>.
    */
-  @Nullable // only because Boon may not set it as it bypasses our ctor and the final keyword
-  private final Set<String> implied;
+  @Nullable // only because Gson may set it to null
+  private Set<String> implied;
 
   public ServicePermissionInfo() {
-    this.permissionStrings = Collections.emptySet();
+    this.permissionStrings = new HashSet<>(4);
     this.implies = false;
-    this.implied = Collections.emptySet();
+    this.implied = new HashSet<>(8);
   }
 
   public ServicePermissionInfo(

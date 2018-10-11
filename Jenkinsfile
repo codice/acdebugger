@@ -1,5 +1,7 @@
 //"Jenkins Pipeline is a suite of plugins which supports implementing and integrating continuous delivery pipelines into Jenkins. Pipeline provides an extensible set of tools for modeling delivery pipelines "as code" via the Pipeline DSL."
 //More information can be found on the Jenkins Documentation page https://jenkins.io/doc/
+library 'github-utils-shared-library@master'
+
 pipeline {
     agent { label 'linux-small' }
     options {
@@ -17,13 +19,39 @@ pipeline {
     environment {
         DISABLE_DOWNLOAD_PROGRESS_OPTS = '-Dorg.slf4j.simpleLogger.log.org.apache.maven.cli.transfer.Slf4jMavenTransferListener=warn '
         LINUX_MVN_RANDOM = '-Djava.security.egd=file:/dev/./urandom'
-        COVERAGE_EXCLUSIONS = '**/test/**/*,**/itests/**/*,**/*Test*,**/sdk/**/*,**/*.js,**/node_modules/**/*,**/jaxb/**/*,**/wsdl/**/*,**/nces/sws/**/*,**/*.adoc,**/*.txt,**/*.xml,**/platform-solr-server-standalone/**/*'
+        COVERAGE_EXCLUSIONS = '**/test/**/*,**/itests/**/*,**/*Test*'
         SONAR_PROJECT_KEY = 'acdebugger'
+        GITHUB_USERNAME = 'codice'
+        GITHUB_REPONAME = 'acdebugger'
     }
     stages {
         stage('Setup') {
             steps {
                 slackSend color: 'good', message: "STARTED: ${JOB_NAME} ${BUILD_NUMBER} ${BUILD_URL}"
+                withCredentials([usernameColonPassword(credentialsId: 'cxbot', variable: 'GITHUB_TOKEN')]) {
+                    postCommentIfPR("Internal build has been started. Your results will be available at completion. See build progress in [legacy Jenkins UI](${BUILD_URL}) or in [Blue Ocean UI](${BUILD_URL}display/redirect).", "${GITHUB_USERNAME}", "${GITHUB_REPONAME}", "${GITHUB_TOKEN}")
+                    script {
+                        //Check if the current HEAD is a Merge commit https://stackoverflow.com/questions/3824050/telling-if-a-git-commit-is-a-merge-revert-commit/3824122#3824122
+                        try  {
+                            sh(script: 'if [ `git cat-file -p HEAD | head -n 3 | grep parent | wc -l` -gt 1 ]; then exit 1; else exit 0; fi')
+                            //No error was thrown -> we called exit 0 -> HEAD is not a merge commit/doesn't have multiple parents
+                            env.PR_COMMIT = sh(returnStdout: true, script: 'git rev-parse HEAD').trim()
+                        } catch (err) {
+                            //An error was thrown -> we called exit 1 -> HEAD is a merge commit/has multiple parents
+                            env.PR_COMMIT = sh(returnStdout: true, script: 'git rev-parse HEAD~1').trim()
+                        }
+                        //Clear existing status checks
+                        def jsonBlob = getGithubStatusJsonBlob("pending", "${BUILD_URL}display/redirect", "Linux Build In Progress...", "jenkins/build/linux")
+                        postStatusToHash("${jsonBlob}", "${GITHUB_USERNAME}", "${GITHUB_REPONAME}", "${env.PR_COMMIT}", "${GITHUB_TOKEN}")
+                        // The post/comment steps only work during linux builds at the moment, will add this back in after the step is platform independent
+                        //jsonBlob = getGithubStatusJsonBlob("pending", "${BUILD_URL}display/redirect", "Windows Build In Progress...", "jenkins/build/windows")
+                        //postStatusToHash("${jsonBlob}", "${GITHUB_USERNAME}", "${GITHUB_REPONAME}", "${env.PR_COMMIT}", "${GITHUB_TOKEN}")
+                        jsonBlob = getGithubStatusJsonBlob("pending", "${BUILD_URL}display/redirect", "Sonar In Progress...", "jenkins/static-analysis/sonar")
+                        postStatusToHash("${jsonBlob}", "${GITHUB_USERNAME}", "${GITHUB_REPONAME}", "${env.PR_COMMIT}", "${GITHUB_TOKEN}")
+                        jsonBlob = getGithubStatusJsonBlob("pending", "${BUILD_URL}display/redirect", "OWASP In Progress...", "jenkins/static-analysis/owasp")
+                        postStatusToHash("${jsonBlob}", "${GITHUB_USERNAME}", "${GITHUB_REPONAME}", "${env.PR_COMMIT}", "${GITHUB_TOKEN}")
+                    }
+                }
             }
         }
         // The incremental build will be triggered only for PRs. It will build the differences between the PR and the target branch
@@ -40,6 +68,27 @@ pipeline {
                         withMaven(maven: 'Maven 3.5.4', globalMavenSettingsConfig: 'default-global-settings', mavenSettingsConfig: 'codice-maven-settings', mavenOpts: '${LINUX_MVN_RANDOM}') {
                               sh 'mvn install -B -DskipStatic=true -DskipTests=true $DISABLE_DOWNLOAD_PROGRESS_OPTS'
                               sh 'mvn clean install -B -Dgib.enabled=true -Dgib.referenceBranch=/refs/remotes/origin/$CHANGE_TARGET $DISABLE_DOWNLOAD_PROGRESS_OPTS'
+                        }
+                    }
+                    post {
+                        success {
+                            withCredentials([usernameColonPassword(credentialsId: 'cxbot', variable: 'GITHUB_TOKEN')]) {
+                                script {
+                                    def jsonBlob = getGithubStatusJsonBlob("success", "${BUILD_URL}display/redirect", "Linux Build Succeeded!", "jenkins/build/linux")
+                                    postStatusToHash("${jsonBlob}", "${GITHUB_USERNAME}", "${GITHUB_REPONAME}", "${env.PR_COMMIT}", "${GITHUB_TOKEN}")
+                                }
+                            }
+                        }
+                        failure {
+                            catchError{ junit '**/target/surefire-reports/*.xml' }
+                            catchError{ junit '**/target/failsafe-reports/*.xml' }
+                            catchError{ zip zipFile: 'PaxExamRuntimeFolder.zip', archive: true, glob: '**/target/exam/**/*' }
+                            withCredentials([usernameColonPassword(credentialsId: 'cxbot', variable: 'GITHUB_TOKEN')]) {
+                                script {
+                                    def jsonBlob = getGithubStatusJsonBlob("failure", "${BUILD_URL}display/redirect", "Linux Build Failed!", "jenkins/build/linux")
+                                    postStatusToHash("${jsonBlob}", "${GITHUB_USERNAME}", "${GITHUB_REPONAME}", "${env.PR_COMMIT}", "${GITHUB_TOKEN}")
+                                }
+                            }
                         }
                     }
                 }
@@ -63,30 +112,33 @@ pipeline {
                               sh 'mvn clean install -B $DISABLE_DOWNLOAD_PROGRESS_OPTS'
                         }
                     }
+                    post {
+                        success {
+                            withCredentials([usernameColonPassword(credentialsId: 'cxbot', variable: 'GITHUB_TOKEN')]) {
+                                script {
+                                    def jsonBlob = getGithubStatusJsonBlob("success", "${BUILD_URL}display/redirect", "Linux Build Succeeded!", "jenkins/build/linux")
+                                    postStatusToHash("${jsonBlob}", "${GITHUB_USERNAME}", "${GITHUB_REPONAME}", "${env.PR_COMMIT}", "${GITHUB_TOKEN}")
+                                }
+                            }
+                        }
+                        failure {
+                            catchError{ junit '**/target/surefire-reports/*.xml' }
+                            catchError{ junit '**/target/failsafe-reports/*.xml' }
+                            catchError{ zip zipFile: 'PaxExamRuntimeFolder.zip', archive: true, glob: '**/target/exam/**/*' }
+                            withCredentials([usernameColonPassword(credentialsId: 'cxbot', variable: 'GITHUB_TOKEN')]) {
+                                script {
+                                    def jsonBlob = getGithubStatusJsonBlob("failure", "${BUILD_URL}display/redirect", "Linux Build Failed!", "jenkins/build/linux")
+                                    postStatusToHash("${jsonBlob}", "${GITHUB_USERNAME}", "${GITHUB_REPONAME}", "${env.PR_COMMIT}", "${GITHUB_TOKEN}")
+                                }
+                            }
+                        }
+                    }
                 }
                 stage ('Windows') {
                     agent { label 'server-2016-small'}
                     steps {
                         withMaven(maven: 'Maven 3.5.4', jdk: 'jdk8-latest', globalMavenSettingsConfig: 'default-global-settings', mavenSettingsConfig: 'codice-maven-settings') {
                               bat 'mvn clean install -B %DISABLE_DOWNLOAD_PROGRESS_OPTS%'
-                        }
-                    }
-                }
-            }
-        }
-        stage('Security Analysis') {
-            parallel {
-                stage ('Owasp') {
-                    steps {
-                        withMaven(maven: 'Maven 3.5.4', jdk: 'jdk8-latest', globalMavenSettingsConfig: 'default-global-settings', mavenSettingsConfig: 'codice-maven-settings', mavenOpts: '${LINUX_MVN_RANDOM}') {
-                            script {
-                                // If this build is not a pull request, run full owasp scan. Otherwise run incremental scan
-                                if (env.CHANGE_ID == null) {
-                                    sh 'mvn install -q -B -Powasp -DskipTests=true -DskipStatic=true $DISABLE_DOWNLOAD_PROGRESS_OPTS'
-                                } else {
-                                    sh 'mvn install -q -B -Powasp -DskipTests=true -DskipStatic=true -Dgib.enabled=true -Dgib.referenceBranch=/refs/remotes/origin/$CHANGE_TARGET $DISABLE_DOWNLOAD_PROGRESS_OPTS'
-                                }
-                            }
                         }
                     }
                 }
@@ -112,6 +164,38 @@ pipeline {
         }
         stage('Quality Analysis') {
             parallel {
+                stage ('Owasp') {
+                    steps {
+                        withMaven(maven: 'Maven 3.5.4', jdk: 'jdk8-latest', globalMavenSettingsConfig: 'default-global-settings', mavenSettingsConfig: 'codice-maven-settings', mavenOpts: '${LINUX_MVN_RANDOM}') {
+                            script {
+                                // If this build is not a pull request, run full owasp scan. Otherwise run incremental scan
+                                if (env.CHANGE_ID == null) {
+                                    sh 'mvn install -q -B -Powasp -DskipTests=true -DskipStatic=true $DISABLE_DOWNLOAD_PROGRESS_OPTS'
+                                } else {
+                                    sh 'mvn install -q -B -Powasp -DskipTests=true -DskipStatic=true -Dgib.enabled=true -Dgib.referenceBranch=/refs/remotes/origin/$CHANGE_TARGET $DISABLE_DOWNLOAD_PROGRESS_OPTS'
+                                }
+                            }
+                        }
+                    }
+                    post {
+                        success {
+                            script {
+                                withCredentials([usernameColonPassword(credentialsId: 'cxbot', variable: 'GITHUB_TOKEN')]) {
+                                    def jsonBlob = getGithubStatusJsonBlob("success", "${BUILD_URL}display/redirect", "OWASP Succeeded!", "jenkins/static-analysis/owasp")
+                                    postStatusToHash("${jsonBlob}", "${GITHUB_USERNAME}", "${GITHUB_REPONAME}", "${env.PR_COMMIT}", "${GITHUB_TOKEN}")
+                                }
+                            }
+                        }
+                        failure {
+                            script {
+                                withCredentials([usernameColonPassword(credentialsId: 'cxbot', variable: 'GITHUB_TOKEN')]) {
+                                    def jsonBlob = getGithubStatusJsonBlob("failure", "${BUILD_URL}display/redirect", "OWASP Failed!", "jenkins/static-analysis/owasp")
+                                    postStatusToHash("${jsonBlob}", "${GITHUB_USERNAME}", "${GITHUB_REPONAME}", "${env.PR_COMMIT}", "${GITHUB_TOKEN}")
+                                }
+                            }
+                        }
+                    }
+                }
                 stage ('SonarCloud') {
                     steps {
                         withMaven(maven: 'Maven 3.5.4', jdk: 'jdk8-latest', globalMavenSettingsConfig: 'default-global-settings', mavenSettingsConfig: 'codice-maven-settings', mavenOpts: '${LINUX_MVN_RANDOM}') {
@@ -121,8 +205,26 @@ pipeline {
                                     if (env.CHANGE_ID == null) {
                                         sh 'mvn -q -B -Dcheckstyle.skip=true org.jacoco:jacoco-maven-plugin:prepare-agent install sonar:sonar -Dsonar.host.url=https://sonarcloud.io -Dsonar.login=$SONAR_TOKEN  -Dsonar.organization=codice -Dsonar.projectKey=${SONAR_PROJECT_KEY} -Dsonar.exclusions=${COVERAGE_EXCLUSIONS} $DISABLE_DOWNLOAD_PROGRESS_OPTS'
                                     } else {
-                                        sh 'mvn -q -B -Dcheckstyle.skip=true org.jacoco:jacoco-maven-plugin:prepare-agent install sonar:sonar -Dsonar.github.pullRequest=${CHANGE_ID} -Dsonar.github.oauth=${SONARQUBE_GITHUB_TOKEN} -Dsonar.analysis.mode=preview -Dsonar.host.url=https://sonarcloud.io -Dsonar.login=$SONAR_TOKEN -Dsonar.organization=codice -Dsonar.projectKey=${SONAR_PROJECT_KEY} -Dsonar.exclusions=${COVERAGE_EXCLUSIONS} -Dgib.enabled=true -Dgib.referenceBranch=/refs/remotes/origin/$CHANGE_TARGET $DISABLE_DOWNLOAD_PROGRESS_OPTS'
+                                        sh 'mvn -q -B -Dcheckstyle.skip=true org.jacoco:jacoco-maven-plugin:prepare-agent install sonar:sonar -Dsonar.github.pullRequest=${CHANGE_ID} -Dsonar.github.repository=${GITHUB_USERNAME}/${GITHUB_REPONAME} -Dsonar.github.oauth=${SONARQUBE_GITHUB_TOKEN} -Dsonar.analysis.mode=preview -Dsonar.host.url=https://sonarcloud.io -Dsonar.login=$SONAR_TOKEN -Dsonar.organization=codice -Dsonar.projectKey=${SONAR_PROJECT_KEY} -Dsonar.exclusions=${COVERAGE_EXCLUSIONS} -Dgib.enabled=true -Dgib.referenceBranch=/refs/remotes/origin/$CHANGE_TARGET $DISABLE_DOWNLOAD_PROGRESS_OPTS'
                                     }
+                                }
+                            }
+                        }
+                    }
+                    post {
+                        success {
+                            script {
+                                withCredentials([usernameColonPassword(credentialsId: 'cxbot', variable: 'GITHUB_TOKEN')]) {
+                                    def jsonBlob = getGithubStatusJsonBlob("success", "${BUILD_URL}display/redirect", "Sonar Succeeded!", "jenkins/static-analysis/sonar")
+                                    postStatusToHash("${jsonBlob}", "${GITHUB_USERNAME}", "${GITHUB_REPONAME}", "${env.PR_COMMIT}", "${GITHUB_TOKEN}")
+                                }
+                            }
+                        }
+                        failure {
+                            script {
+                                withCredentials([usernameColonPassword(credentialsId: 'cxbot', variable: 'GITHUB_TOKEN')]) {
+                                    def jsonBlob = getGithubStatusJsonBlob("failure", "${BUILD_URL}display/redirect", "Sonar Failed!", "jenkins/static-analysis/sonar")
+                                    postStatusToHash("${jsonBlob}", "${GITHUB_USERNAME}", "${GITHUB_REPONAME}", "${env.PR_COMMIT}", "${GITHUB_TOKEN}")
                                 }
                             }
                         }
@@ -134,12 +236,21 @@ pipeline {
     post {
         success {
             slackSend color: 'good', message: "SUCCESS: ${JOB_NAME} ${BUILD_NUMBER}"
+            withCredentials([usernameColonPassword(credentialsId: 'cxbot', variable: 'GITHUB_TOKEN')]) {
+                postCommentIfPR("Build success! See the job results in [legacy Jenkins UI](${BUILD_URL}) or in [Blue Ocean UI](${BUILD_URL}display/redirect).", "${GITHUB_USERNAME}", "${GITHUB_REPONAME}", "${GITHUB_TOKEN}")
+            }
         }
         failure {
             slackSend color: '#ea0017', message: "FAILURE: ${JOB_NAME} ${BUILD_NUMBER}. See the results here: ${BUILD_URL}"
+            withCredentials([usernameColonPassword(credentialsId: 'cxbot', variable: 'GITHUB_TOKEN')]) {
+                postCommentIfPR("Build failure. See the job results in [legacy Jenkins UI](${BUILD_URL}) or in [Blue Ocean UI](${BUILD_URL}display/redirect).", "${GITHUB_USERNAME}", "${GITHUB_REPONAME}", "${GITHUB_TOKEN}")
+            }
         }
         unstable {
             slackSend color: '#ffb600', message: "UNSTABLE: ${JOB_NAME} ${BUILD_NUMBER}. See the results here: ${BUILD_URL}"
+            withCredentials([usernameColonPassword(credentialsId: 'cxbot', variable: 'GITHUB_TOKEN')]) {
+                postCommentIfPR("Build unstable. See the job results in [legacy Jenkins UI](${BUILD_URL}) or in [Blue Ocean UI](${BUILD_URL}display/redirect).", "${GITHUB_USERNAME}", "${GITHUB_REPONAME}", "${GITHUB_TOKEN}")
+            }
         }
     }
 }

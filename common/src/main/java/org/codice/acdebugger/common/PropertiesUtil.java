@@ -15,16 +15,17 @@ package org.codice.acdebugger.common;
 
 import java.util.List;
 import java.util.Properties;
+import java.util.stream.Stream;
 
 /**
  * Utility classes for compressing strings based on system property values with special <code>
  * ${property.name}</code> strings.
  */
 public class PropertiesUtil {
-  public static final List<String> PROPERTIES =
+  private static final List<String> PROPERTIES =
       Resources.readLines(PropertiesUtil.class, "properties.txt");
 
-  private final Properties properties;
+  private final Properties systemProperties;
 
   /**
    * Builds a property utility with the given set of system property mappings.
@@ -32,7 +33,7 @@ public class PropertiesUtil {
    * @param properties the set of property names/values to use when contracting
    */
   public PropertiesUtil(Properties properties) {
-    this.properties = properties;
+    this.systemProperties = properties;
   }
 
   /**
@@ -49,11 +50,20 @@ public class PropertiesUtil {
   }
 
   private String replaceWithProperty(String s, String property) {
-    final String value = properties.getProperty(property);
+    final String value = systemProperties.getProperty(property);
 
     if ((value != null) && !value.isEmpty()) {
       return s.replace(value, "${" + property + "}");
     }
     return s;
+  }
+
+  /**
+   * Gets all configurated system property names.
+   *
+   * @return a stream of all configured property names
+   */
+  public static Stream<String> propertiesNames() {
+    return PropertiesUtil.PROPERTIES.stream();
   }
 }

@@ -13,9 +13,11 @@
  */
 package org.codice.acdebugger.breakpoints;
 
-import com.sun.jdi.ObjectReference;
-import com.sun.jdi.ThreadReference;
-import com.sun.jdi.request.EventRequest;
+// NOSONAR - squid:S1191 - Using the Java debugger API
+
+import com.sun.jdi.ObjectReference; // NOSONAR
+import com.sun.jdi.ThreadReference; // NOSONAR
+import com.sun.jdi.request.EventRequest; // NOSONAR
 import java.util.Set;
 import java.util.stream.Stream;
 import org.codice.acdebugger.api.BreakpointProcessor;
@@ -29,7 +31,6 @@ import org.codice.acdebugger.impl.BreakpointLocation;
  *
  * <p><i>Note:</i> Verified with org.eclipse.osgi 3.12.50.
  */
-@SuppressWarnings("squid:S1191" /* Using the Java debugger API */)
 public class HasListenServicePermissionBreakpointProcessor implements BreakpointProcessor {
   @Override
   public final Stream<BreakpointLocation> locations() {

@@ -13,11 +13,13 @@
  */
 package org.codice.acdebugger.api;
 
-import com.sun.jdi.ThreadReference;
-import com.sun.jdi.VirtualMachine;
-import com.sun.jdi.event.Event;
-import com.sun.jdi.event.LocatableEvent;
-import com.sun.jdi.request.EventRequestManager;
+// NOSONAR - squid:S1191 - Using the Java debugger API
+
+import com.sun.jdi.ThreadReference; // NOSONAR
+import com.sun.jdi.VirtualMachine; // NOSONAR
+import com.sun.jdi.event.Event; // NOSONAR
+import com.sun.jdi.event.LocatableEvent; // NOSONAR
+import com.sun.jdi.request.EventRequestManager; // NOSONAR
 import java.util.function.Supplier;
 import javax.annotation.Nullable;
 import org.codice.acdebugger.impl.Backdoor;
@@ -25,7 +27,6 @@ import org.codice.acdebugger.impl.DebugContext;
 import org.codice.acdebugger.impl.SystemProperties;
 
 /** This class keeps information about the current debugging session/callback. */
-@SuppressWarnings("squid:S1191" /* Using the Java debugger API */)
 public abstract class Debug {
   /** The debug context for the current debug session. */
   private final DebugContext context;

@@ -15,6 +15,7 @@ package org.codice.acdebugger;
 
 import picocli.CommandLine;
 
+/** Main point of entry for the debugger. */
 public class Main {
   public static void main(String[] args) {
     CommandLine.call(new ACDebugger(), args);

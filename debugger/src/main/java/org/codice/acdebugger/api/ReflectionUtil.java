@@ -13,28 +13,30 @@
  */
 package org.codice.acdebugger.api;
 
-import com.sun.jdi.ArrayReference;
-import com.sun.jdi.BooleanValue;
-import com.sun.jdi.ByteValue;
-import com.sun.jdi.CharValue;
-import com.sun.jdi.ClassObjectReference;
-import com.sun.jdi.ClassType;
-import com.sun.jdi.DoubleValue;
-import com.sun.jdi.Field;
-import com.sun.jdi.FloatValue;
-import com.sun.jdi.IntegerValue;
-import com.sun.jdi.LongValue;
-import com.sun.jdi.Method;
-import com.sun.jdi.ObjectCollectedException;
-import com.sun.jdi.ObjectReference;
-import com.sun.jdi.ReferenceType;
-import com.sun.jdi.ShortValue;
-import com.sun.jdi.StringReference;
-import com.sun.jdi.ThreadReference;
-import com.sun.jdi.Type;
-import com.sun.jdi.Value;
-import com.sun.jdi.VirtualMachine;
-import com.sun.jdi.VoidValue;
+// NOSONAR - squid:S1191 - Using the Java debugger API
+
+import com.sun.jdi.ArrayReference; // NOSONAR
+import com.sun.jdi.BooleanValue; // NOSONAR
+import com.sun.jdi.ByteValue; // NOSONAR
+import com.sun.jdi.CharValue; // NOSONAR
+import com.sun.jdi.ClassObjectReference; // NOSONAR
+import com.sun.jdi.ClassType; // NOSONAR
+import com.sun.jdi.DoubleValue; // NOSONAR
+import com.sun.jdi.Field; // NOSONAR
+import com.sun.jdi.FloatValue; // NOSONAR
+import com.sun.jdi.IntegerValue; // NOSONAR
+import com.sun.jdi.LongValue; // NOSONAR
+import com.sun.jdi.Method; // NOSONAR
+import com.sun.jdi.ObjectCollectedException; // NOSONAR
+import com.sun.jdi.ObjectReference; // NOSONAR
+import com.sun.jdi.ReferenceType; // NOSONAR
+import com.sun.jdi.ShortValue; // NOSONAR
+import com.sun.jdi.StringReference; // NOSONAR
+import com.sun.jdi.ThreadReference; // NOSONAR
+import com.sun.jdi.Type; // NOSONAR
+import com.sun.jdi.Value; // NOSONAR
+import com.sun.jdi.VirtualMachine; // NOSONAR
+import com.sun.jdi.VoidValue; // NOSONAR
 import java.lang.reflect.Array;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -47,7 +49,6 @@ import javax.annotation.Nullable;
 import org.codice.acdebugger.impl.DebugContext;
 
 /** Provides reflection-style functionality via the debugger's interface. */
-@SuppressWarnings("squid:S1191" /* Using the Java debugger API */)
 public class ReflectionUtil {
   static final String METHOD_SIGNATURE_NO_ARGS_STRING_RESULT = "()Ljava/lang/String;";
 
@@ -420,7 +421,7 @@ public class ReflectionUtil {
 
     if (method == null) {
       throw new Error(
-          "could not find method '" + name + "[" + signature + "]' for: " + type.name());
+          String.format("could not find method '%s[%s]' for: %s", name, signature, type.name()));
     }
     return invoke(obj, method, args);
   }
@@ -506,7 +507,8 @@ public class ReflectionUtil {
 
     if (method == null) {
       throw new Error(
-          "could not find method '" + name + "[" + signature + "]' for: " + type.name());
+          String.format(
+              "could not find static method '%s[%s]' for: %s", name, signature, type.name()));
     }
     return invokeStatic(clazz, method, args);
   }
@@ -644,7 +646,8 @@ public class ReflectionUtil {
     final Method ctor = findConstructor(type, signature);
 
     if (ctor == null) {
-      throw new Error("could not find constructor '[" + signature + "]' for: " + type.name());
+      throw new Error(
+          String.format("could not find constructor '[%s]' for: %s", signature, type.name()));
     }
     return newInstance(type, ctor, args);
   }

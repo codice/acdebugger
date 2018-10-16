@@ -1,5 +1,5 @@
 # Access Controller Debugger
-Purpose-built debugger for determining missing OSGi bundle security permissions.
+Purpose-built debugger for determining missing security permissions in OSGi containers and non-OSGi VM.
 
 ### Current implementation
 The current implementation will put a breakpoint on line 472 of

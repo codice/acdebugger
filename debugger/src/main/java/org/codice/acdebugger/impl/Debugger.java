@@ -13,24 +13,26 @@
  */
 package org.codice.acdebugger.impl;
 
-import com.sun.jdi.Bootstrap;
-import com.sun.jdi.Method;
-import com.sun.jdi.ReferenceType;
-import com.sun.jdi.VirtualMachine;
-import com.sun.jdi.VirtualMachineManager;
-import com.sun.jdi.connect.AttachingConnector;
-import com.sun.jdi.connect.Connector.Argument;
-import com.sun.jdi.connect.IllegalConnectorArgumentsException;
-import com.sun.jdi.event.Event;
-import com.sun.jdi.event.EventIterator;
-import com.sun.jdi.event.EventQueue;
-import com.sun.jdi.event.EventSet;
-import com.sun.jdi.event.LocatableEvent;
-import com.sun.jdi.event.VMDisconnectEvent;
-import com.sun.jdi.request.BreakpointRequest;
-import com.sun.jdi.request.ClassPrepareRequest;
-import com.sun.jdi.request.EventRequest;
-import com.sun.jdi.request.EventRequestManager;
+// NOSONAR - squid:S1191 - Using the Java debugger API
+
+import com.sun.jdi.Bootstrap; // NOSONAR
+import com.sun.jdi.Method; // NOSONAR
+import com.sun.jdi.ReferenceType; // NOSONAR
+import com.sun.jdi.VirtualMachine; // NOSONAR
+import com.sun.jdi.VirtualMachineManager; // NOSONAR
+import com.sun.jdi.connect.AttachingConnector; // NOSONAR
+import com.sun.jdi.connect.Connector.Argument; // NOSONAR
+import com.sun.jdi.connect.IllegalConnectorArgumentsException; // NOSONAR
+import com.sun.jdi.event.Event; // NOSONAR
+import com.sun.jdi.event.EventIterator; // NOSONAR
+import com.sun.jdi.event.EventQueue; // NOSONAR
+import com.sun.jdi.event.EventSet; // NOSONAR
+import com.sun.jdi.event.LocatableEvent; // NOSONAR
+import com.sun.jdi.event.VMDisconnectEvent; // NOSONAR
+import com.sun.jdi.request.BreakpointRequest; // NOSONAR
+import com.sun.jdi.request.ClassPrepareRequest; // NOSONAR
+import com.sun.jdi.request.EventRequest; // NOSONAR
+import com.sun.jdi.request.EventRequestManager; // NOSONAR
 import java.io.IOException;
 import java.util.Iterator;
 import java.util.List;
@@ -46,7 +48,6 @@ import org.codice.acdebugger.api.BreakpointProcessor;
 import org.codice.acdebugger.api.Debug;
 
 /** This class provides the main implementation for processing breakpoint requests/callbacks. */
-@SuppressWarnings("squid:S1191" /* Using the Java debugger API */)
 public class Debugger {
   private static final String INFO_KEY = "info";
 

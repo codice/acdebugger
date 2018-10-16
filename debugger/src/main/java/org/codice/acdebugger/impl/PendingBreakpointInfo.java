@@ -13,14 +13,15 @@
  */
 package org.codice.acdebugger.impl;
 
-import com.sun.jdi.request.ClassPrepareRequest;
+// NOSONAR - squid:S1191 - Using the Java debugger API
+
+import com.sun.jdi.request.ClassPrepareRequest; // NOSONAR
 import org.codice.acdebugger.api.BreakpointProcessor;
 
 /**
  * Information about a pending breakpoint to register which is awaiting its corresponding class to
  * be loaded.
  */
-@SuppressWarnings("squid:S1191" /* Using the Java debugger API */)
 public class PendingBreakpointInfo {
   private final ClassPrepareRequest request;
   private final BreakpointProcessor processor;

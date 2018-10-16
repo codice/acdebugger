@@ -13,15 +13,17 @@
  */
 package org.codice.acdebugger.breakpoints;
 
+// NOSONAR - squid:S1191 - Using the Java debugger API
+
 import com.google.common.base.Charsets;
 import com.google.common.collect.Ordering;
 import com.google.common.io.LineProcessor;
 import com.google.common.io.Resources;
-import com.sun.jdi.ArrayReference;
-import com.sun.jdi.Location;
-import com.sun.jdi.ObjectReference;
-import com.sun.jdi.StackFrame;
-import com.sun.jdi.Value;
+import com.sun.jdi.ArrayReference; // NOSONAR
+import com.sun.jdi.Location; // NOSONAR
+import com.sun.jdi.ObjectReference; // NOSONAR
+import com.sun.jdi.StackFrame; // NOSONAR
+import com.sun.jdi.Value; // NOSONAR
 import java.io.IOError;
 import java.io.IOException;
 import java.security.Permission;
@@ -46,7 +48,6 @@ import org.codice.acdebugger.api.StackFrameInformation;
  * During analysis, it is also used to compute and report possible security solutions to the
  * security failure.
  */
-@SuppressWarnings("squid:S1191" /* Using the Java debugger API */)
 class SecurityCheckInformation extends SecuritySolution implements SecurityFailure {
   /**
    * List of patterns to match security check information that should be considered acceptable
@@ -574,7 +575,7 @@ class SecurityCheckInformation extends SecuritySolution implements SecurityFailu
   }
 
   @SuppressWarnings("squid:S106" /* this is a console application */)
-  protected void dumpPermission() {
+  private void dumpPermission() {
     if (isAcceptable()) {
       System.out.println(ACDebugger.PREFIX + "Acceptable permissions:");
       System.out.println(ACDebugger.PREFIX + "    " + getAcceptablePermissions());
@@ -587,7 +588,7 @@ class SecurityCheckInformation extends SecuritySolution implements SecurityFailu
   }
 
   @SuppressWarnings("squid:S106" /* this is a console application */)
-  protected void dumpHowToFix(boolean osgi) {
+  private void dumpHowToFix(boolean osgi) {
     if (!grantedDomains.isEmpty()) {
       final String ds = (grantedDomains.size() == 1) ? "" : "s";
       final String ps = (permissionInfos.size() == 1) ? "" : "s";

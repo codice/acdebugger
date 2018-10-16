@@ -13,8 +13,10 @@
  */
 package org.codice.acdebugger.api;
 
-import com.sun.jdi.ClassType;
-import com.sun.jdi.ObjectReference;
+// NOSONAR - squid:S1191 - Using the Java debugger API
+
+import com.sun.jdi.ClassType; // NOSONAR
+import com.sun.jdi.ObjectReference; // NOSONAR
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.Map;
@@ -26,7 +28,6 @@ import javax.annotation.Nullable;
 import org.codice.acdebugger.common.ServicePermissionInfo;
 
 /** Provides permission-specific functionality. */
-@SuppressWarnings("squid:S1191" /* Using the Java debugger API */)
 public class PermissionUtil {
   /** Internal key where information about service properties is cached. */
   private static final String SERVICE_PROPERTY_CACHE = "debug.service.property.cache";

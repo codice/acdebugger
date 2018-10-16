@@ -13,9 +13,11 @@
  */
 package org.codice.acdebugger.impl;
 
-import com.sun.jdi.ClassType;
-import com.sun.jdi.Method;
-import com.sun.jdi.ObjectReference;
+// NOSONAR - squid:S1191 - Using the Java debugger API
+
+import com.sun.jdi.ClassType; // NOSONAR
+import com.sun.jdi.Method; // NOSONAR
+import com.sun.jdi.ObjectReference; // NOSONAR
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Objects;
@@ -25,6 +27,7 @@ import org.codice.acdebugger.api.Debug;
 import org.codice.acdebugger.api.ReflectionUtil;
 import org.codice.acdebugger.common.PropertiesUtil;
 
+/** Provides utility functions around system properties for the attached VM. */
 public class SystemProperties {
   public static final String CLASS_SIGNATURE = "Ljava/lang/System;";
 
@@ -33,11 +36,7 @@ public class SystemProperties {
 
   private ObjectReference systemPropertiesReference;
 
-  private Method getProperty;
-
   private boolean initializing = false;
-
-  private Properties properties = null;
 
   private PropertiesUtil util;
 
@@ -47,6 +46,7 @@ public class SystemProperties {
    * @param debug the current debug information
    * @param systemPropertiesReference the system properties reference
    */
+  @SuppressWarnings("squid:S106" /* this is a console application */)
   public synchronized void init(Debug debug, ObjectReference systemPropertiesReference) {
     if (systemPropertiesReference == null) {
       throw new IllegalStateException("unable to locate system properties");
@@ -56,28 +56,30 @@ public class SystemProperties {
     try {
       this.initializing = true;
       this.systemPropertiesReference = systemPropertiesReference;
-      this.getProperty =
+      final Method getProperty =
           reflection.findMethod(
               systemPropertiesReference.referenceType(),
               "getProperty",
               SystemProperties.METHOD_SIGNATURE_STRING_ARG_STRING_RESULT);
-      final Map<String, String> properties = new LinkedHashMap<>();
+      final Map<String, String> map = new LinkedHashMap<>();
 
-      for (final String property : PropertiesUtil.PROPERTIES) {
-        final String value = reflection.invoke(systemPropertiesReference, getProperty, property);
+      PropertiesUtil.propertiesNames()
+          .forEach(
+              name -> {
+                final String value =
+                    reflection.invoke(systemPropertiesReference, getProperty, name);
 
-        if (value != null) {
-          properties.put(property, value);
-        }
-      }
+                if (value != null) {
+                  map.put(name, value);
+                }
+              });
       final Properties props = new Properties();
 
-      props.putAll(properties);
-      this.properties = props;
-      this.util = new PropertiesUtil(this.properties);
+      props.putAll(map);
+      this.util = new PropertiesUtil(props);
       System.out.println(ACDebugger.PREFIX);
       System.out.println(ACDebugger.PREFIX + "System properties are initialized");
-      properties.forEach(
+      map.forEach(
           (p, v) -> System.out.println(ACDebugger.PREFIX + "    " + p + " = \"" + v + "\""));
     } finally {
       this.initializing = false;

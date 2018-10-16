@@ -14,6 +14,7 @@
 package org.codice.acdebugger.common;
 
 import java.io.BufferedReader;
+import java.io.IOError;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
@@ -25,12 +26,17 @@ import java.util.function.Function;
 
 /** Utility classes for managing resources. */
 public class Resources {
+  private Resources() {
+    throw new UnsupportedOperationException();
+  }
+
   /**
    * Reads a list of lines from the specified resource relative to the given class.
    *
    * @param clazz the class relative to where the resource should be loaded
    * @param name the name of the resource to load
    * @return an unmodifiable list of all trimmed lines read from the resource
+   * @throws IOError if an I/O exception occurs
    */
   public static List<String> readLines(Class<?> clazz, String name) {
     return Resources.readLines(clazz, name, Function.identity());
@@ -43,6 +49,7 @@ public class Resources {
    * @param name the name of the resource to load
    * @param transformer a function to convert each trimmed lines into the required object
    * @return an unmodifiable list of all transformed lines read from the resource
+   * @throws IOError if an I/O exception occurs
    */
   public static <T> List<T> readLines(
       Class<?> clazz, String name, Function<String, T> transformer) {
@@ -62,7 +69,7 @@ public class Resources {
       }
       return Collections.unmodifiableList(lines);
     } catch (IOException e) {
-      throw new Error(e);
+      throw new IOError(e);
     }
   }
 }

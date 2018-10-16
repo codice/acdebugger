@@ -13,10 +13,12 @@
  */
 package org.codice.acdebugger.breakpoints;
 
-import com.sun.jdi.ArrayReference;
-import com.sun.jdi.ObjectReference;
-import com.sun.jdi.ThreadReference;
-import com.sun.jdi.request.EventRequest;
+// NOSONAR - squid:S1191 - Using the Java debugger API
+
+import com.sun.jdi.ArrayReference; // NOSONAR
+import com.sun.jdi.ObjectReference; // NOSONAR
+import com.sun.jdi.ThreadReference; // NOSONAR
+import com.sun.jdi.request.EventRequest; // NOSONAR
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Stream;
@@ -30,7 +32,6 @@ import org.codice.acdebugger.impl.BreakpointLocation;
  * Defines a breakpoint processor capable of intercepting security exceptions in the access
  * controller before they get thrown out.
  */
-@SuppressWarnings("squid:S1191" /* Using the Java debugger API */)
 public class AccessControlContextCheckBreakpointProcessor implements BreakpointProcessor {
   @Override
   public Stream<BreakpointLocation> locations() {

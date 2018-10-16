@@ -13,12 +13,14 @@
  */
 package org.codice.acdebugger.breakpoints;
 
-import com.sun.jdi.IncompatibleThreadStateException;
-import com.sun.jdi.IntegerValue;
-import com.sun.jdi.StackFrame;
-import com.sun.jdi.ThreadReference;
-import com.sun.jdi.Value;
-import com.sun.jdi.VirtualMachine;
+// NOSONAR - squid:S1191 - Using the Java debugger API
+
+import com.sun.jdi.IncompatibleThreadStateException; // NOSONAR
+import com.sun.jdi.IntegerValue; // NOSONAR
+import com.sun.jdi.StackFrame; // NOSONAR
+import com.sun.jdi.ThreadReference; // NOSONAR
+import com.sun.jdi.Value; // NOSONAR
+import com.sun.jdi.VirtualMachine; // NOSONAR
 import java.lang.reflect.Array;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
@@ -29,10 +31,7 @@ import java.lang.reflect.Method;
  * Class used to read the current index in the access controller were the security exception is
  * being thrown.
  */
-@SuppressWarnings({
-  "squid:S1191", /* Using the Java debugger API */
-  "squid:S1148" /* this is a console application */
-})
+@SuppressWarnings("squid:S1148" /* this is a console application */)
 class ReadDebugIndex {
   private static final byte INT_BYTE_SIG = (byte) 73;
   private static Class<?> slotInfoClass;

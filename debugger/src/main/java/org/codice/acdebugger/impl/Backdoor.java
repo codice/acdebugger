@@ -13,11 +13,13 @@
  */
 package org.codice.acdebugger.impl;
 
+// NOSONAR - squid:S1191 - Using the Java debugger API
+
 import com.google.gson.reflect.TypeToken;
-import com.sun.jdi.ArrayReference;
-import com.sun.jdi.ClassType;
-import com.sun.jdi.Method;
-import com.sun.jdi.ObjectReference;
+import com.sun.jdi.ArrayReference; // NOSONAR
+import com.sun.jdi.ClassType; // NOSONAR
+import com.sun.jdi.Method; // NOSONAR
+import com.sun.jdi.ObjectReference; // NOSONAR
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Objects;
@@ -32,7 +34,6 @@ import org.codice.acdebugger.common.JsonUtils;
 import org.codice.acdebugger.common.ServicePermissionInfo;
 
 /** This class provides access to the backdoor class running inside the attached VM. */
-@SuppressWarnings("squid:S1191" /* Using the Java debugger API */)
 public class Backdoor {
   public static final String CLASS_SIGNATURE = "Lorg/codice/acdebugger/backdoor/Backdoor;";
 
@@ -92,7 +93,7 @@ public class Backdoor {
           reflection.findMethod(
               backdoorReference.referenceType(),
               "getDomain",
-              "(Ljava/lang/Object;)Ljava/lang/String;");
+              Backdoor.METHOD_SIGNATURE_OBJ_ARG_STRING_RESULT);
       this.getDomainInfo =
           reflection.findMethod(
               backdoorReference.referenceType(),

@@ -13,9 +13,11 @@
  */
 package org.codice.acdebugger.api;
 
-import com.sun.jdi.Location;
-import com.sun.jdi.ObjectReference;
-import com.sun.jdi.ReferenceType;
+// NOSONAR - squid:S1191 - Using the Java debugger API
+
+import com.sun.jdi.Location; // NOSONAR
+import com.sun.jdi.ObjectReference; // NOSONAR
+import com.sun.jdi.ReferenceType; // NOSONAR
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
@@ -25,7 +27,6 @@ import javax.annotation.Nullable;
 import org.codice.acdebugger.common.Resources;
 
 /** Information about a particular frame in a calling stack. */
-@SuppressWarnings("squid:S1191" /* Using the Java debugger API */)
 public class StackFrameInformation implements Comparable<StackFrameInformation> {
   /** Constant for how to represent bundle 0 to users. */
   public static final String BUNDLE0 = "bundle-0";
@@ -268,11 +269,13 @@ public class StackFrameInformation implements Comparable<StackFrameInformation> 
    */
   public String toString(boolean osgi, @Nullable Set<String> privilegedDomains) {
     final String p = (isPrivileged(privilegedDomains) ? "" : "*");
-    final String d =
-        ((domain != null)
-            ? domain
-            : (osgi ? StackFrameInformation.BUNDLE0 : StackFrameInformation.BOOT_DOMAIN));
+    final String d;
 
+    if (domain != null) {
+      d = domain;
+    } else {
+      d = osgi ? StackFrameInformation.BUNDLE0 : StackFrameInformation.BOOT_DOMAIN;
+    }
     return p + d + "(" + location + ") <" + classOrInstanceAtLocation + '>';
   }
 
@@ -305,12 +308,11 @@ public class StackFrameInformation implements Comparable<StackFrameInformation> 
   private boolean isProxyClass(Debug debug) {
     final ReflectionUtil reflection = debug.reflection();
 
-    if (thisObject != null) {
-      if (StackFrameInformation.PROXIES
-          .stream()
-          .anyMatch(p -> reflection.isInstance(p, thisObject))) {
-        return true;
-      }
+    if ((thisObject != null)
+        && StackFrameInformation.PROXIES
+            .stream()
+            .anyMatch(p -> reflection.isInstance(p, thisObject))) {
+      return true;
     }
     if (locationClass != null) {
       // although unlikely that a normal class would extend a proxy generated class, let's still

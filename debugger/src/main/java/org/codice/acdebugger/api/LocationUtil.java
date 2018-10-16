@@ -13,12 +13,13 @@
  */
 package org.codice.acdebugger.api;
 
-import com.sun.jdi.StackFrame;
-import com.sun.jdi.Value;
+// NOSONAR - squid:S1191 - Using the Java debugger API
+
+import com.sun.jdi.StackFrame; // NOSONAR
+import com.sun.jdi.Value; // NOSONAR
 import javax.annotation.Nullable;
 
 /** Provides location utility functionality. */
-@SuppressWarnings("squid:S1191" /* Using the Java debugger API */)
 public interface LocationUtil {
   /**
    * Gets the location (i.e. bundle name or domain location) for the given domain.

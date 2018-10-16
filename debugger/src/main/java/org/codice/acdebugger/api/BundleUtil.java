@@ -13,16 +13,17 @@
  */
 package org.codice.acdebugger.api;
 
-import com.sun.jdi.ObjectReference;
-import com.sun.jdi.ReferenceType;
-import com.sun.jdi.StackFrame;
-import com.sun.jdi.Value;
+// NOSONAR - squid:S1191 - Using the Java debugger API
+
+import com.sun.jdi.ObjectReference; // NOSONAR
+import com.sun.jdi.ReferenceType; // NOSONAR
+import com.sun.jdi.StackFrame; // NOSONAR
+import com.sun.jdi.Value; // NOSONAR
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import javax.annotation.Nullable;
 
 /** Provides bundle utility functionality. */
-@SuppressWarnings("squid:S1191" /* Using the Java debugger API */)
 public class BundleUtil implements LocationUtil {
   /** Internal key where bundle names for specific objects are cached. */
   private static final String BUNDLE_INFO_CACHE = "debug.bundle.info.cache";

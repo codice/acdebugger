@@ -13,12 +13,13 @@
  */
 package org.codice.acdebugger.impl;
 
-import com.sun.jdi.request.EventRequest;
+// NOSONAR - squid:S1191 - Using the Java debugger API
+
+import com.sun.jdi.request.EventRequest; // NOSONAR
 import org.codice.acdebugger.api.BreakpointProcessor;
 import org.codice.acdebugger.api.Debug;
 
 /** This class provides information about a current breakpoint registered with the debugger. */
-@SuppressWarnings("squid:S1191" /* Using the Java debugger API */)
 public class BreakpointInfo {
   private final EventRequest request;
   private final BreakpointProcessor processor;

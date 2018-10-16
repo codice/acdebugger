@@ -13,12 +13,14 @@
  */
 package org.codice.acdebugger.api;
 
-import com.sun.jdi.ArrayReference;
-import com.sun.jdi.ClassObjectReference;
-import com.sun.jdi.ObjectReference;
-import com.sun.jdi.ReferenceType;
-import com.sun.jdi.StackFrame;
-import com.sun.jdi.Value;
+// NOSONAR - squid:S1191 - Using the Java debugger API
+
+import com.sun.jdi.ArrayReference; // NOSONAR
+import com.sun.jdi.ClassObjectReference; // NOSONAR
+import com.sun.jdi.ObjectReference; // NOSONAR
+import com.sun.jdi.ReferenceType; // NOSONAR
+import com.sun.jdi.StackFrame; // NOSONAR
+import com.sun.jdi.Value; // NOSONAR
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -28,7 +30,6 @@ import javax.annotation.Nullable;
 import org.codice.acdebugger.common.DomainInfo;
 
 /** Provides domain utility functionality. */
-@SuppressWarnings("squid:S1191" /* Using the Java debugger API */)
 public class DomainUtil implements LocationUtil {
   /** Internal key where locations for specific domains are cached. */
   private static final String DOMAIN_LOCATION_CACHE = "debug.domains.location.cache";

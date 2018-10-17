@@ -110,45 +110,9 @@ public class SecuritySolution implements Comparable<SecuritySolution> {
 
     if (!grantedDomains.isEmpty()) {
       if (osgi) {
-        System.out.println(
-            ACDebugger.PREFIX
-                + prefix
-                + "    Add the following permission block to the appropriate policy file:");
-        System.out.println(
-            ACDebugger.PREFIX
-                + prefix
-                + "        grant codeBase \"file:/"
-                + grantedDomains.stream().sorted().collect(Collectors.joining("/"))
-                + "\" {");
-        permissionInfos
-            .stream()
-            .sorted()
-            .forEach(
-                p ->
-                    System.out.println(
-                        ACDebugger.PREFIX + prefix + "            permission " + p + ";"));
-        System.out.println(ACDebugger.PREFIX + prefix + "        }");
+        printGrantedBundles(prefix);
       } else {
-        final String s = (grantedDomains.size() > 1) ? "s" : "";
-
-        System.out.println(
-            ACDebugger.PREFIX
-                + prefix
-                + "    Add the following permission block"
-                + s
-                + " to the appropriate policy file:");
-        for (final String location : grantedDomains) {
-          System.out.println(
-              ACDebugger.PREFIX + prefix + "        grant codeBase \"" + location + "\" {");
-          permissionInfos
-              .stream()
-              .sorted()
-              .forEach(
-                  p ->
-                      System.out.println(
-                          ACDebugger.PREFIX + prefix + "            permission " + p + ";"));
-          System.out.println(ACDebugger.PREFIX + prefix + "        }");
-        }
+        printGrantedDomains(prefix);
       }
       and = "and a";
     } else {
@@ -217,6 +181,52 @@ public class SecuritySolution implements Comparable<SecuritySolution> {
           && doPrivileged.equals(s.doPrivileged);
     }
     return false;
+  }
+
+  @SuppressWarnings("squid:S106" /* this is a console application */)
+  private void printGrantedDomains(String prefix) {
+    final String s = (grantedDomains.size() > 1) ? "s" : "";
+
+    System.out.println(
+        ACDebugger.PREFIX
+            + prefix
+            + "    Add the following permission block"
+            + s
+            + " to the appropriate policy file:");
+    for (final String location : grantedDomains) {
+      System.out.println(
+          ACDebugger.PREFIX + prefix + "        grant codeBase \"" + location + "\" {");
+      permissionInfos
+          .stream()
+          .sorted()
+          .forEach(
+              p ->
+                  System.out.println(
+                      ACDebugger.PREFIX + prefix + "            permission " + p + ";"));
+      System.out.println(ACDebugger.PREFIX + prefix + "        }");
+    }
+  }
+
+  @SuppressWarnings("squid:S106" /* this is a console application */)
+  private void printGrantedBundles(String prefix) {
+    System.out.println(
+        ACDebugger.PREFIX
+            + prefix
+            + "    Add the following permission block to the appropriate policy file:");
+    System.out.println(
+        ACDebugger.PREFIX
+            + prefix
+            + "        grant codeBase \"file:/"
+            + grantedDomains.stream().sorted().collect(Collectors.joining("/"))
+            + "\" {");
+    permissionInfos
+        .stream()
+        .sorted()
+        .forEach(
+            p ->
+                System.out.println(
+                    ACDebugger.PREFIX + prefix + "            permission " + p + ";"));
+    System.out.println(ACDebugger.PREFIX + prefix + "        }");
   }
 
   private int compareSizes(Collection<?> c1, Collection<?> c2) {

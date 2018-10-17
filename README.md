@@ -77,10 +77,10 @@ Prints out usage information and exit.
 Prints version information and exit.
 
 #### --host / -H `<hostname or IP>`
-Specifies the host or IP where the VM to attach to is located
+Specifies the host or IP where the VM to attach to is located (defaults to `localhost`).
  
 #### --port / -p `<port number>`
-Specifies the port number the VM is awaiting debuggers to connect to
+Specifies the port number the VM is awaiting debuggers to connect to (defaults to `5005`).
 
 #### --wait / -w
 Indicates to wait for a connection. The default timeout is 10 minutes.

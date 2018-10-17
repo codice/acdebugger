@@ -1,0 +1,24 @@
+# Sets of location regex strings for code known to perform a <code>doPrivileged()</code> block in
+# the code on behalf of its caller by re-arranging the access control context.
+#
+# All of these are only considered if they are part of the boot domain or bundle-0.
+#
+# These locations are confirmed to get the current context using
+# <code>AccessController.getContext()</code> and pass it along as is directly to a
+# <code>AccessController.doPrivileged()</code> method as opposed to getting it from somewhere else.
+# The difference is that the context being passed in is from the stack at that point and not from
+# something unrelated and as such, we can treat it as being part of the stack context of domains
+# instead of combined domains.
+
+# Subject.doAs() is designed to execute a privileged action with the added context of the subject,
+# one is trying to do something as. It purposely retrieves the context at the point it is called
+# and combines the subject's attached context. The end result is that the stack break normally
+# created by calling doPrivileged() is ignored since all the contexts before are being re-combined.
+# So by identifying it here, the debugger can continue to consider these stack method calls during
+# its analysis and provide better solutions.
+# These are for JDK 8
+javax\.security\.auth\.Subject:359
+javax\.security\.auth\.Subject:421
+# These are for OpenSource JDK 11
+javax\.security\.auth\.Subject:360
+javax\.security\.auth\.Subject:422

@@ -70,6 +70,14 @@ public class StackFrameInformation implements Comparable<StackFrameInformation> 
       Resources.readLines(StackFrameInformation.class, "proxies.txt");
 
   /**
+   * Set of code location patterns known to perform a <code>doPrivileged()</code> block in the code
+   * on behalf of its caller by re-arranging the access control context.
+   */
+  private static final List<Pattern> DO_PRIVILEGED_ON_BEHALF_PATTERNS =
+      Resources.readLines(
+          StackFrameInformation.class, "do-privileged-on-behalf-patterns.txt", Pattern::compile);
+
+  /**
    * The bundle name or domain location corresponding to this stack frame or <code>null</code> if it
    * corresponds to <code>bundle-0</code> or the boot domain or if unknown.
    */
@@ -202,7 +210,11 @@ public class StackFrameInformation implements Comparable<StackFrameInformation> 
    *     <code>false</code> if not
    */
   public boolean isCallingDoPrivilegedBlockOnBehalfOfCaller() {
-    return ((domain == null) && location.equals("javax.security.auth.Subject:422"));
+    return ((domain == null)
+        && StackFrameInformation.DO_PRIVILEGED_ON_BEHALF_PATTERNS
+            .stream()
+            .map(p -> p.matcher(location))
+            .anyMatch(Matcher::matches));
   }
 
   /**

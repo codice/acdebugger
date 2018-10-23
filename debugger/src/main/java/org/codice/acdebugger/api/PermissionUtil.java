@@ -60,7 +60,7 @@ public class PermissionUtil {
    *     false</code> if not
    */
   public boolean implies(String domain, String permission) {
-    return debug.getContext().hasPermission(domain, permission);
+    return debug.context().hasPermission(domain, permission);
   }
 
   /**
@@ -76,7 +76,7 @@ public class PermissionUtil {
    *     false</code> if not
    */
   public boolean implies(String domain, Set<String> permissions) {
-    return debug.getContext().hasPermissions(domain, permissions);
+    return debug.context().hasPermissions(domain, permissions);
   }
 
   /**
@@ -169,7 +169,7 @@ public class PermissionUtil {
     "squid:S1148" /* this is a console application */
   })
   public boolean grant(String domain, String permission) {
-    final boolean granted = debug.getContext().grantPermission(domain, permission);
+    final boolean granted = debug.context().grantPermission(domain, permission);
 
     if (granted && debug.isGranting() && debug.isContinuous()) {
       // try to grant the permission in the VM via the backdoor
@@ -291,14 +291,14 @@ public class PermissionUtil {
 
       if (debug.isContinuous()) {
         // first make sure we cache all permissions since we granted them if they were missing
-        permissionStrings.forEach(p -> debug.getContext().grantPermission(bundle, p));
+        permissionStrings.forEach(p -> debug.context().grantPermission(bundle, p));
       }
       // next cache all info we have about pre-existed implied permissions
       // and remove them from the complete list of permissions since they were not missing
       info.getImpliedPermissionStrings()
           .stream()
           .peek(permissionStrings::remove)
-          .forEach(p -> debug.getContext().grantPermission(bundle, p));
+          .forEach(p -> debug.context().grantPermission(bundle, p));
       if (!info.implies()) { // we didn't have all permissions
         return permissionStrings;
       }

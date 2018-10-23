@@ -73,7 +73,7 @@ public abstract class Debug {
    * @return the virtual machine to which this debugger is attached
    */
   public VirtualMachine virtualMachine() {
-    return reflection.getVirtualMachine();
+    return reflection.virtualMachine();
   }
 
   /**
@@ -83,7 +83,7 @@ public abstract class Debug {
    * @throws IllegalStateException if currently not associated with a thread
    */
   public ThreadReference thread() {
-    return reflection.getThread();
+    return reflection.thread();
   }
 
   /**
@@ -92,7 +92,7 @@ public abstract class Debug {
    * @return the backdoor utility
    */
   public Backdoor backdoor() {
-    return context.getBackdoor();
+    return context.backdoor();
   }
 
   /**
@@ -154,7 +154,7 @@ public abstract class Debug {
    *
    * @return the event request manager associated with the debugging session
    */
-  public EventRequestManager getEventRequestManager() {
+  public EventRequestManager eventRequestManager() {
     return virtualMachine().eventRequestManager();
   }
 
@@ -164,7 +164,7 @@ public abstract class Debug {
    * @return the current event associated with this debug instance
    * @throws IllegalStateException if currently not associated with an event
    */
-  public Event getEvent() {
+  public Event event() {
     if (event == null) {
       throw new IllegalStateException("missing event");
     }
@@ -302,7 +302,7 @@ public abstract class Debug {
     context.record(failure);
   }
 
-  DebugContext getContext() {
+  DebugContext context() {
     return context;
   }
 }

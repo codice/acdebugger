@@ -15,6 +15,7 @@ package org.codice.acdebugger.api;
 
 // NOSONAR - squid:S1191 - Using the Java debugger API
 
+import com.google.common.annotations.VisibleForTesting;
 import com.sun.jdi.ArrayReference; // NOSONAR
 import com.sun.jdi.ClassObjectReference; // NOSONAR
 import com.sun.jdi.ObjectReference; // NOSONAR
@@ -35,7 +36,7 @@ public class DomainUtil implements LocationUtil {
   private static final String DOMAIN_LOCATION_CACHE = "debug.domains.location.cache";
 
   /** Constant used in the domain cache when a given object is associated with a null domain. */
-  private static final String NULL_DOMAIN = "NULL-DOMAIN";
+  @VisibleForTesting static final String NULL_DOMAIN = "NULL-DOMAIN";
 
   private final Debug debug;
 
@@ -51,104 +52,42 @@ public class DomainUtil implements LocationUtil {
   @Override
   @Nullable
   public String get(@Nullable Value domain) {
-    if (!(domain instanceof ObjectReference)) {
-      return null;
-    }
-    return get((ObjectReference) domain);
+    return get((Object) domain);
   }
 
   @Override
   @Nullable
   public String get(StackFrame frame) {
-    final ObjectReference thisObject = frame.thisObject();
-
-    return (thisObject != null) ? get(thisObject.referenceType()) : null;
+    return get((Object) frame);
   }
 
   /**
-   * Gets domain information for the given domain.
+   * Gets a domain location for the given object. The object can be a {@link StackFrame}, a {@link
+   * ClassObjectReference}, a {@link ReferenceType}, or an {@link ObjectReference} representing a
+   * protection domain.
    *
-   * @param domain the domain to find the corresponding location
-   * @return the corresponding location or <code>null</code> if none exist
+   * @param obj the object for which to find the corresponding domain
+   * @return the corresponding domain location or <code>null</code> if none exist
    */
   @Nullable
-  public String get(@Nullable ObjectReference domain) {
-    if (domain == null) {
+  public String get(@Nullable Object obj) {
+    if (obj instanceof StackFrame) {
+      obj = ((StackFrame) obj).location().declaringType().classObject();
+    } else if (obj instanceof ReferenceType) {
+      obj = ((ReferenceType) obj).classObject();
+    }
+    if (obj == null) {
       return null;
     }
     final Map<Object, String> cache =
         debug.computeIfAbsent(DomainUtil.DOMAIN_LOCATION_CACHE, ConcurrentHashMap::new);
-    String location = cache.get(domain);
 
-    if (location == null) {
-      location = getFromBackdoor(domain, cache);
+    if (obj instanceof ClassObjectReference) {
+      return get0((ClassObjectReference) obj, cache);
+    } else if (obj instanceof ObjectReference) {
+      return get0((ObjectReference) obj, cache);
     }
-    if (location != null) {
-      return (location != DomainUtil.NULL_DOMAIN) ? location : null;
-    }
-    final ReflectionUtil reflection = debug.reflection();
-
-    location =
-        reflection.toString(
-            reflection.invokeAndReturnNullIfNotFound(
-                reflection.invoke(
-                    (ObjectReference) domain, "getCodeSource", "()Ljava/security/CodeSource;"),
-                "getLocation",
-                "()Ljava/net/URL;"));
-    if (location != null) {
-      if (location.regionMatches(true, 0, "file:/", 0, 6)) {
-        location = debug.properties().compress(debug, location);
-      }
-      cache.put(domain, location);
-    } else {
-      cache.put(domain, DomainUtil.NULL_DOMAIN);
-    }
-    return location;
-  }
-
-  /**
-   * Gets domain information for the given class.
-   *
-   * @param clazz the class to find the corresponding domain location
-   * @return the corresponding domain location or <code>null</code> if none exist
-   */
-  @Nullable
-  public String get(@Nullable ReferenceType clazz) {
-    if (clazz == null) {
-      return null;
-    }
-    return get(clazz.classObject());
-  }
-
-  /**
-   * Gets domain information for the given class.
-   *
-   * @param clazz the class to find the corresponding domain location
-   * @return the corresponding domain location or <code>null</code> if none exist
-   */
-  @Nullable
-  public String get(@Nullable ClassObjectReference clazz) {
-    if (clazz == null) {
-      return null;
-    }
-    final Map<Object, String> cache =
-        debug.computeIfAbsent(DomainUtil.DOMAIN_LOCATION_CACHE, ConcurrentHashMap::new);
-    String location = cache.get(clazz);
-
-    if (location != null) {
-      return (location != DomainUtil.NULL_DOMAIN) ? location : null;
-    }
-    // getProtectionDomain0() is private in class Class and avoids the security manager check which
-    // would create a recursion which we don't want to handle here. In addition, it returns a fake
-    // domain if none is associated with the class
-    location =
-        get(
-            (ObjectReference)
-                debug
-                    .reflection()
-                    .invoke(clazz, "getProtectionDomain0", "()Ljava/security/ProtectionDomain;"));
-    cache.put(clazz, (location != null) ? location : DomainUtil.NULL_DOMAIN);
-    return location;
+    return null;
   }
 
   /**
@@ -179,21 +118,76 @@ public class DomainUtil implements LocationUtil {
     info = new ArrayList<>(domains.size());
     for (int i = 0; i < domains.size(); i++) {
       final ObjectReference domain = (ObjectReference) domains.get(i);
-      final String location = get(domain);
+      final String location = get0(domain, cache);
       boolean implies;
 
       if (i < firstDomainWithoutPermission) {
         implies = true;
       } else {
-        implies = debug.permissions().implies(location, permissionInfos); // check cache
+        final PermissionUtil permissions = debug.permissions();
+
+        implies = permissions.implies(location, permissionInfos); // check cache
         if (!implies && (i > firstDomainWithoutPermission)) { // check attached VM
           // we now the first one doesn't so no need to check again
-          implies = debug.permissions().implies(domain, permission);
+          implies = permissions.implies(domain, permission);
         }
       }
       info.add(new DomainInfo(location, implies));
     }
     return info;
+  }
+
+  @Nullable
+  private String get0(ClassObjectReference clazz, Map<Object, String> cache) {
+    String location = cache.get(clazz);
+
+    if (location != null) {
+      return (location != DomainUtil.NULL_DOMAIN) ? location : null;
+    }
+    // getProtectionDomain0() is private in class Class and avoids the security manager check which
+    // would create a recursion which we don't want to handle here. In addition, it returns a fake
+    // domain if none is associated with the class
+    location =
+        get0(
+            (ObjectReference)
+                debug
+                    .reflection()
+                    .invoke(clazz, "getProtectionDomain0", "()Ljava/security/ProtectionDomain;"),
+            cache);
+    cache.put(clazz, (location != null) ? location : DomainUtil.NULL_DOMAIN);
+    return location;
+  }
+
+  @Nullable
+  private String get0(ObjectReference domain, Map<Object, String> cache) {
+    if (domain == null) {
+      return null;
+    }
+    String location = cache.get(domain);
+
+    if (location == null) {
+      location = getFromBackdoor(domain, cache);
+    }
+    if (location != null) {
+      return (location != DomainUtil.NULL_DOMAIN) ? location : null;
+    }
+    final ReflectionUtil reflection = debug.reflection();
+
+    location =
+        reflection.toString(
+            reflection.invokeAndReturnNullIfNotFound(
+                reflection.invoke(domain, "getCodeSource", "()Ljava/security/CodeSource;"),
+                "getLocation",
+                "()Ljava/net/URL;"));
+    if (location != null) {
+      if (location.regionMatches(true, 0, "file:/", 0, 6)) {
+        location = debug.properties().compress(debug, location);
+      }
+      cache.put(domain, location);
+    } else {
+      cache.put(domain, DomainUtil.NULL_DOMAIN);
+    }
+    return location;
   }
 
   @Nullable

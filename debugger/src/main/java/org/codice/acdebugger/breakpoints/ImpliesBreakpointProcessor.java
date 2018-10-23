@@ -67,7 +67,7 @@ public class ImpliesBreakpointProcessor implements BreakpointProcessor {
 
   @Override
   public EventRequest createRequest(Debug debug, BreakpointLocation l) throws Exception {
-    return debug.getEventRequestManager().createBreakpointRequest(l.getLocation());
+    return debug.eventRequestManager().createBreakpointRequest(l.getLocation());
   }
 
   @SuppressWarnings({

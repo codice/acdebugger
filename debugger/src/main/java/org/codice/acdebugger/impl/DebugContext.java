@@ -61,7 +61,7 @@ public class DebugContext {
    *
    * @return the backdoor utility
    */
-  public Backdoor getBackdoor() {
+  public Backdoor backdoor() {
     return backdoor;
   }
 

@@ -38,7 +38,7 @@ public class BackdoorProcessor implements BreakpointProcessor {
     if (debug.backdoor().init(debug)) { // we are initialized or we managed to initialize
       return null;
     }
-    final MethodExitRequest request = debug.getEventRequestManager().createMethodExitRequest();
+    final MethodExitRequest request = debug.eventRequestManager().createMethodExitRequest();
 
     request.addClassFilter(location.getClassReference());
     return request;
@@ -46,7 +46,7 @@ public class BackdoorProcessor implements BreakpointProcessor {
 
   @Override
   public void process(BreakpointInfo info, Debug debug) throws Exception {
-    final MethodExitEvent event = (MethodExitEvent) debug.getEvent();
+    final MethodExitEvent event = (MethodExitEvent) debug.event();
     final ThreadReference thread = event.thread();
 
     debug.backdoor().init(debug, thread.frame(0).thisObject());

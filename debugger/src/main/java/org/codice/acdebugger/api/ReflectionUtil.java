@@ -87,7 +87,7 @@ public class ReflectionUtil {
    *
    * @return the virtual machine to which this debugger is attached
    */
-  public VirtualMachine getVirtualMachine() {
+  public VirtualMachine virtualMachine() {
     return vm;
   }
 
@@ -97,7 +97,7 @@ public class ReflectionUtil {
    * @return the current thread associated with this debug instance
    * @throws IllegalStateException if currently not associated with a thread
    */
-  public ThreadReference getThread() {
+  public ThreadReference thread() {
     if (thread == null) {
       throw new IllegalStateException("missing thread reference");
     }
@@ -471,8 +471,7 @@ public class ReflectionUtil {
       }
       return (T)
           fromMirror(
-              obj.invokeMethod(
-                  getThread(), method, values, ObjectReference.INVOKE_SINGLE_THREADED));
+              obj.invokeMethod(thread(), method, values, ObjectReference.INVOKE_SINGLE_THREADED));
     } catch (Exception e) {
       throw new Error(e);
     } finally {
@@ -558,8 +557,7 @@ public class ReflectionUtil {
       }
       return (T)
           fromMirror(
-              clazz.invokeMethod(
-                  getThread(), method, values, ObjectReference.INVOKE_SINGLE_THREADED));
+              clazz.invokeMethod(thread(), method, values, ObjectReference.INVOKE_SINGLE_THREADED));
     } catch (Exception e) {
       throw new Error(e);
     } finally {
@@ -608,7 +606,7 @@ public class ReflectionUtil {
           protect(
               () ->
                   type.newInstance(
-                      getThread(),
+                      thread(),
                       ctor,
                       values,
                       ObjectReference.INVOKE_SINGLE_THREADED

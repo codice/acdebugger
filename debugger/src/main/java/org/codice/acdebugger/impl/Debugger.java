@@ -258,7 +258,7 @@ public class Debugger {
   }
 
   private void add(BreakpointProcessor processor, BreakpointLocation l) throws Exception {
-    final EventRequestManager erm = debug.getEventRequestManager();
+    final EventRequestManager erm = debug.eventRequestManager();
     final ReferenceType clazz = debug.reflection().getClass(l.getClassSignature());
 
     if (clazz == null) {
@@ -310,7 +310,7 @@ public class Debugger {
         final PendingBreakpointInfo info = (PendingBreakpointInfo) oinfo;
 
         request.disable();
-        debug.getEventRequestManager().deleteEventRequest(request);
+        debug.eventRequestManager().deleteEventRequest(request);
         add(info.getProcessor(), info.getLocation());
       } else if (oinfo instanceof BreakpointInfo) {
         final String method = ((BreakpointInfo) oinfo).getLocation().getMethod();

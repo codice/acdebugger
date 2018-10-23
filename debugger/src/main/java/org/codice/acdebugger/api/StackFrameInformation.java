@@ -256,9 +256,13 @@ public class StackFrameInformation implements Comparable<StackFrameInformation> 
   public int compareTo(StackFrameInformation f) {
     if (f == this) {
       return 0;
-    }
-    if (domain != f.domain) {
-      final int d = (domain == null) ? -1 : domain.compareTo(f.domain);
+    } else if (domain != f.domain) {
+      if (domain == null) {
+        return -1;
+      } else if (f.domain == null) {
+        return 1;
+      }
+      final int d = domain.compareTo(f.domain);
 
       if (d != 0) {
         return d;
@@ -293,7 +297,7 @@ public class StackFrameInformation implements Comparable<StackFrameInformation> 
 
   @Override
   public String toString() {
-    return toString(false, null);
+    return toString(true, null);
   }
 
   private boolean isThirdPartyDomain(Debug debug) {

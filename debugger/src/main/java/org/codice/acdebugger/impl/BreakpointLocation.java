@@ -13,13 +13,14 @@
  */
 package org.codice.acdebugger.impl;
 
-import com.sun.jdi.AbsentInformationException;
-import com.sun.jdi.Location;
-import com.sun.jdi.ReferenceType;
+// NOSONAR - squid:S1191 - Using the Java debugger API
+
+import com.sun.jdi.AbsentInformationException; // NOSONAR
+import com.sun.jdi.Location; // NOSONAR
+import com.sun.jdi.ReferenceType; // NOSONAR
 import javax.annotation.Nullable;
 
 /** This class keeps track of a location in the code where we want to debug. */
-@SuppressWarnings("squid:S1191" /* Using the Java debugger API */)
 public class BreakpointLocation {
   private final String classSignature;
   private final String method;

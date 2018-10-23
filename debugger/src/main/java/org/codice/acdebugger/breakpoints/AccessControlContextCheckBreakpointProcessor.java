@@ -13,10 +13,12 @@
  */
 package org.codice.acdebugger.breakpoints;
 
-import com.sun.jdi.ArrayReference;
-import com.sun.jdi.ObjectReference;
-import com.sun.jdi.ThreadReference;
-import com.sun.jdi.request.EventRequest;
+// NOSONAR - squid:S1191 - Using the Java debugger API
+
+import com.sun.jdi.ArrayReference; // NOSONAR
+import com.sun.jdi.ObjectReference; // NOSONAR
+import com.sun.jdi.ThreadReference; // NOSONAR
+import com.sun.jdi.request.EventRequest; // NOSONAR
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Stream;
@@ -30,7 +32,6 @@ import org.codice.acdebugger.impl.BreakpointLocation;
  * Defines a breakpoint processor capable of intercepting security exceptions in the access
  * controller before they get thrown out.
  */
-@SuppressWarnings("squid:S1191" /* Using the Java debugger API */)
 public class AccessControlContextCheckBreakpointProcessor implements BreakpointProcessor {
   @Override
   public Stream<BreakpointLocation> locations() {
@@ -40,7 +41,7 @@ public class AccessControlContextCheckBreakpointProcessor implements BreakpointP
 
   @Override
   public EventRequest createRequest(Debug debug, BreakpointLocation l) throws Exception {
-    return debug.getEventRequestManager().createBreakpointRequest(l.getLocation());
+    return debug.eventRequestManager().createBreakpointRequest(l.getLocation());
   }
 
   @Override
@@ -55,7 +56,7 @@ public class AccessControlContextCheckBreakpointProcessor implements BreakpointP
     final SecurityCheckInformation security =
         new SecurityCheckInformation(debug, context, local_i, permission);
 
-    if (security.getFailedBundle() != null) {
+    if (security.getFailedDomain() != null) {
       if (!security.isAcceptable()) {
         // check if we have only one solution and that solution is to only grant permission(s)
         // (no privileged blocks) in which case we shall cache them to avoid going through all
@@ -64,18 +65,18 @@ public class AccessControlContextCheckBreakpointProcessor implements BreakpointP
 
         if (solutions.size() == 1) {
           final SecuritySolution solution = solutions.get(0);
-          final Set<String> grantedBundles = solution.getGrantedBundles();
+          final Set<String> grantedDomains = solution.getGrantedDomains();
 
-          if (!grantedBundles.isEmpty() && solution.getDoPrivilegedLocations().isEmpty()) {
+          if (!grantedDomains.isEmpty() && solution.getDoPrivilegedLocations().isEmpty()) {
             solution
-                .getGrantedBundles()
-                .forEach(b -> debug.permissions().grant(b, solution.getPermissions()));
+                .getGrantedDomains()
+                .forEach(d -> debug.permissions().grant(d, solution.getPermissions()));
           }
         }
       }
       debug.record(security);
     } // else - could be caused because we already processed something and artificially granted a
-    //          bundle the missing permissions we use in the ctor to determine if bundles have
+    //          domain the missing permissions we use in the ctor to determine if domains have
     //          permissions so even if the VM tells us there was an exception, we skip over it right
     //          away
     if (!debug.isFailing() && debug.isContinuous() && !security.isAcceptable()) {

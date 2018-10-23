@@ -1,5 +1,5 @@
 # Access Controller Debugger
-Purpose-built debugger for determining missing OSGi bundle security permissions.
+Purpose-built debugger for determining missing security permissions in OSGi containers and non-OSGi VM.
 
 ### Current implementation
 The current implementation will put a breakpoint on line 472 of
@@ -17,19 +17,33 @@ The maven build can be used to produce an executable jar. The jar can
 be run by doing: `java -jar acdebugger-debugger-1.5-jar-with-dependencies.jar [options]>`
 
 ### Typical Output
+For OSGi containers, the typical output will be:
 ```
-AC Debugger: 0002 - Check permission failure for platform-migratable-api: java.io.FilePermission "/projects/ddf-2.14.0-SNAPSHOT/security/configurations.policy", "read" {
+AC Debugger: 0002 - Check permission failure for platform-migratable-api: java.io.FilePermission "${ddf.home.perm}security${/}configurations.policy", "read" {
 AC Debugger:     Analyze the following 2 solutions and choose the best:
 AC Debugger:     {
 AC Debugger:         Add an AccessController.doPrivileged() block around:
 AC Debugger:             platform-migration(org.codice.ddf.configuration.migration.ExportMigrationContextImpl:145)
 AC Debugger:     }
 AC Debugger:     {
-AC Debugger:         Add the following permission to default.policy:
+AC Debugger:         Add the following permission block to default.policy:
 AC Debugger:             grant codeBase "file:/platform-migratable-api" {
-AC Debugger:                 permission java.io.FilePermission "/projects/ddf-2.14.0-SNAPSHOT/security/configurations.policy", "read";
+AC Debugger:                 permission java.io.FilePermission "${ddf.home.perm}security${/}configurations.policy", "read";
 AC Debugger:             }
 AC Debugger:     }
+AC Debugger: }
+```
+
+For non-OSGi containers, the typical output will be:
+```
+AC Debugger: 0002 - Check permission failure for platform-migratable-api: java.io.FilePermission "${solr.solr.home}${/}server${/}modules", "read" {
+AC Debugger:     Add the following permission blocks to the appropriate policy file:
+AC Debugger:         grant codeBase "file:${solr.solr.home}${/}server${/}security${/}pro-grade-1.1.3.jar" {
+AC Debugger:             permission java.io.FilePermission "${solr.solr.home}${/}server${/}modules", "read";
+AC Debugger:         }
+AC Debugger:         grant codeBase "file:${solr.solr.home}${/}server${/}server${/}start.jar" {
+AC Debugger:             permission java.io.FilePermission "${solr.solr.home}${/}server${/}modules", "read";
+AC Debugger:         }
 AC Debugger: }
 ```
 
@@ -54,6 +68,7 @@ The following debugger options are available:
 * --service / -s
 * --fail / -f
 * --grant / -g
+* --osgi=`<osgi>`
 
 #### --help / -h 
 Prints out usage information and exit.
@@ -62,10 +77,10 @@ Prints out usage information and exit.
 Prints version information and exit.
 
 #### --host / -H `<hostname or IP>`
-Specifies the host or IP where the VM to attach to is located
+Specifies the host or IP where the VM to attach to is located (defaults to `localhost`).
  
 #### --port / -p `<port number>`
-Specifies the port number the VM is awaiting debuggers to connect to
+Specifies the port number the VM is awaiting debuggers to connect to (defaults to `5005`).
 
 #### --wait / -w
 Indicates to wait for a connection. The default timeout is 10 minutes.
@@ -101,6 +116,10 @@ When specified, the debugger will use the backdoor and a registered ServicePermi
 This is only temporary and will not survive a restart of the VM but will prevent any further failures that would otherwise not be if the permission(s) were defined. 
 It also tends to slow down the system since the OSGi permission cache ends up being cleared each time.
 
+#### --osgi=`<osgi>`
+Indicates the VM we are able to debug is an OSGi container. (default: true)
+When debugging a non-OSGi container, the debugger will report the codesource location of domains instead of bundle names. 
+ 
 ### Modules
 The following modules are defined:
 * acdebugger-api

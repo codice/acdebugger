@@ -17,7 +17,9 @@ import java.io.FilePermission;
 import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
+import java.net.URL;
 import java.security.AccessController;
+import java.security.CodeSource;
 import java.security.Permission;
 import java.security.PermissionCollection;
 import java.security.PrivilegedAction;
@@ -36,8 +38,10 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import javax.annotation.Nullable;
 import org.codice.acdebugger.PermissionService;
+import org.codice.acdebugger.common.DomainInfo;
 import org.codice.acdebugger.common.JsonUtils;
 import org.codice.acdebugger.common.PermissionUtil;
+import org.codice.acdebugger.common.PropertiesUtil;
 import org.codice.acdebugger.common.ServicePermissionInfo;
 import org.osgi.framework.Bundle;
 import org.osgi.framework.BundleActivator;
@@ -52,10 +56,14 @@ import org.osgi.util.tracker.ServiceTracker;
 
 /** Provides a backdoor access point for the AC debugger. */
 public class Backdoor implements BundleActivator {
+  private static final String NOT_A_PERMISSION = "not a permission: ";
+
   @SuppressWarnings({
     "squid:S1068" /* DO NOT CHANGE THIS NAME, the AC debugger is accessing it directly */
   })
   private static volatile Backdoor instance = null;
+
+  private final PropertiesUtil properties = new PropertiesUtil(System.getProperties());
 
   private volatile ServiceTracker<PermissionService, PermissionService> permServiceTracker = null;
 
@@ -134,6 +142,82 @@ public class Backdoor implements BundleActivator {
   }
 
   /**
+   * Gets a domain location for the given domain.
+   *
+   * @param domain the domain for which to find the corresponding location
+   * @return the corresponding domain location or <code>null</code> if unable to find it or if none
+   *     defined
+   */
+  @SuppressWarnings({
+    "squid:S1181", /* letting VirtualMachineErrors bubble out directly, so ok to catch Throwable */
+    "squid:S1148" /* don't have access to logger at this stage */
+  })
+  @Nullable
+  public String getDomain(Object domain) {
+    try {
+      if (!(domain instanceof ProtectionDomain)) {
+        throw new IllegalArgumentException("not a domain: " + domain);
+      }
+      return AccessController.doPrivileged(
+          (PrivilegedAction<String>) () -> getDomainLocation((ProtectionDomain) domain));
+    } catch (VirtualMachineError e) {
+      throw e;
+    } catch (Throwable t) {
+      t.printStackTrace(); // suppress checkstyle:RegexpSingleline|RegexpMultiline
+      throw t;
+    }
+  }
+
+  /**
+   * Gets domain information for the given domain or array of domains and permission.
+   *
+   * <p>This method is purposely defined using Object to avoid having the classes not yet loaded
+   * when the AC debugger attempts to invoke the method. Further more the result is encoded as a
+   * JSON string to reduce the number of times the AC debugger will come back to get the values. If
+   * we return anything else than a primitive or a string, the AC debugger is forced to retrieve the
+   * content of all the objects.
+   *
+   * @param obj the domain or array of domains for which to find the corresponding information
+   * @param permission the permission for which to verify if the domain(s) is(are) granted it (see
+   *     {@link ProtectionDomain#implies(Permission)})
+   * @return a JSON string for the corresponding domain information or a corresponding JSON string
+   *     for a list of domain information
+   */
+  @SuppressWarnings({
+    "squid:S1181", /* letting VirtualMachineErrors bubble out directly, so ok to catch Throwable */
+    "squid:S1148" /* don't have access to logger at this stage */
+  })
+  public String getDomainInfo(Object obj, Object permission) {
+    try {
+      if (!(permission instanceof Permission)) {
+        throw new IllegalArgumentException(Backdoor.NOT_A_PERMISSION + permission);
+      }
+      if (obj instanceof ProtectionDomain) {
+        return AccessController.doPrivileged(
+            (PrivilegedAction<String>)
+                () ->
+                    JsonUtils.toJson(
+                        getDomainInfo((ProtectionDomain) obj, (Permission) permission)));
+      } else if (obj instanceof ProtectionDomain[]) {
+        return AccessController.doPrivileged(
+            (PrivilegedAction<String>)
+                () ->
+                    JsonUtils.toJson(
+                        Stream.of((ProtectionDomain[]) obj)
+                            .map(d -> getDomainInfo(d, (Permission) permission))
+                            .collect(Collectors.toList())));
+      } else {
+        throw new IllegalArgumentException("not a domain or array of domains: " + obj);
+      }
+    } catch (VirtualMachineError e) {
+      throw e;
+    } catch (Throwable t) {
+      t.printStackTrace(); // suppress checkstyle:RegexpSingleline|RegexpMultiline
+      throw t;
+    }
+  }
+
+  /**
    * Gets permission strings corresponding to the given permission object.
    *
    * <p>This method is purposely defined using Object to avoid having the classes not yet loaded
@@ -157,7 +241,7 @@ public class Backdoor implements BundleActivator {
   public String getPermissionStrings(Object permission) {
     try {
       if (!(permission instanceof Permission)) {
-        throw new IllegalArgumentException("not a permission: " + permission);
+        throw new IllegalArgumentException(Backdoor.NOT_A_PERMISSION + permission);
       }
       return AccessController.doPrivileged(
           (PrivilegedAction<String>)
@@ -225,14 +309,14 @@ public class Backdoor implements BundleActivator {
    *
    * <p>This method is called from the AC debugger.
    *
-   * @param bundle the bundle to grant the permissions to
+   * @param domain the bundle name or domain location to grant the permissions to
    * @param permission the permission to be granted
    */
   @SuppressWarnings({
     "squid:S1181", /* letting VirtualMachineErrors bubble out directly, so ok to catch Throwable */
     "squid:S1148" /* don't have access to logger at this stage */
   })
-  public void grantPermission(String bundle, String permission) throws Exception {
+  public void grantPermission(String domain, String permission) throws Exception {
     try {
       AccessController.doPrivileged(
           (PrivilegedExceptionAction<Void>)
@@ -241,7 +325,7 @@ public class Backdoor implements BundleActivator {
                   final PermissionService permissionService = permServiceTracker.getService();
 
                   if (permissionService != null) {
-                    permissionService.grantPermission(bundle, permission);
+                    permissionService.grantPermission(domain, permission);
                   }
                   return null;
                 }
@@ -279,7 +363,7 @@ public class Backdoor implements BundleActivator {
         throw new IllegalArgumentException("not a protection domain: " + domain);
       }
       if (!(permission instanceof Permission)) {
-        throw new IllegalArgumentException("not a permission: " + permission);
+        throw new IllegalArgumentException(Backdoor.NOT_A_PERMISSION + permission);
       }
       return AccessController.doPrivileged(
           (PrivilegedAction<Boolean>)
@@ -519,13 +603,23 @@ public class Backdoor implements BundleActivator {
   private String getPermissionString(
       Class<? extends Permission> clazz, String name, String actions) {
     if (FilePermission.class.isAssignableFrom(clazz)) {
-      // special case to take advantage of the special slash system property if defined
-      final String slash = System.getProperty("/");
-
-      if ((slash != null) && !slash.isEmpty()) {
-        name = name.replace(slash, "${/}");
-      }
+      name = properties.compress(name);
     }
     return PermissionUtil.getPermissionString(clazz, name, actions);
+  }
+
+  private String getDomainLocation(ProtectionDomain domain) {
+    final CodeSource src = domain.getCodeSource();
+    final URL url = (src != null) ? src.getLocation() : null;
+    String location = (url != null) ? url.toString() : null;
+
+    if ((location != null) && url.getProtocol().equalsIgnoreCase("file")) {
+      location = properties.compress(location);
+    }
+    return location;
+  }
+
+  private DomainInfo getDomainInfo(ProtectionDomain domain, Permission permission) {
+    return new DomainInfo(getDomainLocation(domain), domain.implies(permission));
   }
 }

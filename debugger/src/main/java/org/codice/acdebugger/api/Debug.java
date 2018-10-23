@@ -13,18 +13,20 @@
  */
 package org.codice.acdebugger.api;
 
-import com.sun.jdi.ThreadReference;
-import com.sun.jdi.VirtualMachine;
-import com.sun.jdi.event.Event;
-import com.sun.jdi.event.LocatableEvent;
-import com.sun.jdi.request.EventRequestManager;
+// NOSONAR - squid:S1191 - Using the Java debugger API
+
+import com.sun.jdi.ThreadReference; // NOSONAR
+import com.sun.jdi.VirtualMachine; // NOSONAR
+import com.sun.jdi.event.Event; // NOSONAR
+import com.sun.jdi.event.LocatableEvent; // NOSONAR
+import com.sun.jdi.request.EventRequestManager; // NOSONAR
 import java.util.function.Supplier;
 import javax.annotation.Nullable;
 import org.codice.acdebugger.impl.Backdoor;
 import org.codice.acdebugger.impl.DebugContext;
+import org.codice.acdebugger.impl.SystemProperties;
 
 /** This class keeps information about the current debugging session/callback. */
-@SuppressWarnings("squid:S1191" /* Using the Java debugger API */)
 public abstract class Debug {
   /** The debug context for the current debug session. */
   private final DebugContext context;
@@ -71,7 +73,7 @@ public abstract class Debug {
    * @return the virtual machine to which this debugger is attached
    */
   public VirtualMachine virtualMachine() {
-    return reflection.getVirtualMachine();
+    return reflection.virtualMachine();
   }
 
   /**
@@ -81,7 +83,7 @@ public abstract class Debug {
    * @throws IllegalStateException if currently not associated with a thread
    */
   public ThreadReference thread() {
-    return reflection.getThread();
+    return reflection.thread();
   }
 
   /**
@@ -90,7 +92,16 @@ public abstract class Debug {
    * @return the backdoor utility
    */
   public Backdoor backdoor() {
-    return context.getBackdoor();
+    return context.backdoor();
+  }
+
+  /**
+   * Accesses system properties util functionnality.
+   *
+   * @return a system properties utility for the attached VM
+   */
+  public SystemProperties properties() {
+    return context.properties();
   }
 
   /**
@@ -112,6 +123,15 @@ public abstract class Debug {
   }
 
   /**
+   * Accesses location-specific functionality (i.e. {@link BundleUtil} or {@link DomainUtil}).
+   *
+   * @return a location utility instance onto which location-specific methods can be invoked
+   */
+  public LocationUtil locations() {
+    return isOSGi() ? bundles() : domains();
+  }
+
+  /**
    * Accesses bundle-specific functionality.
    *
    * @return a bundle utility instance onto which bundle-specific methods can be invoked
@@ -121,11 +141,20 @@ public abstract class Debug {
   }
 
   /**
+   * Accesses domain-specific functionality.
+   *
+   * @return a domain utility instance onto which domain-specific methods can be invoked
+   */
+  public DomainUtil domains() {
+    return new DomainUtil(this);
+  }
+
+  /**
    * Gets the event request manager associated with the debugging session.
    *
    * @return the event request manager associated with the debugging session
    */
-  public EventRequestManager getEventRequestManager() {
+  public EventRequestManager eventRequestManager() {
     return virtualMachine().eventRequestManager();
   }
 
@@ -135,7 +164,7 @@ public abstract class Debug {
    * @return the current event associated with this debug instance
    * @throws IllegalStateException if currently not associated with an event
    */
-  public Event getEvent() {
+  public Event event() {
     if (event == null) {
       throw new IllegalStateException("missing event");
     }
@@ -179,6 +208,15 @@ public abstract class Debug {
    */
   public <T> void put(String key, T obj) {
     context.put(key, obj);
+  }
+
+  /**
+   * Checks if we are debugging an OSGi system.
+   *
+   * @return <code>true</code> if we are debugging an OSGi system; <code>false</code> if not
+   */
+  public boolean isOSGi() {
+    return context.isOSGi();
   }
 
   /**
@@ -264,7 +302,7 @@ public abstract class Debug {
     context.record(failure);
   }
 
-  DebugContext getContext() {
+  DebugContext context() {
     return context;
   }
 }

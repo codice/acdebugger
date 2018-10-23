@@ -13,10 +13,12 @@
  */
 package org.codice.acdebugger.breakpoints;
 
-import com.sun.jdi.ThreadReference;
-import com.sun.jdi.event.MethodExitEvent;
-import com.sun.jdi.request.EventRequest;
-import com.sun.jdi.request.MethodExitRequest;
+// NOSONAR - squid:S1191 - Using the Java debugger API
+
+import com.sun.jdi.ThreadReference; // NOSONAR
+import com.sun.jdi.event.MethodExitEvent; // NOSONAR
+import com.sun.jdi.request.EventRequest; // NOSONAR
+import com.sun.jdi.request.MethodExitRequest; // NOSONAR
 import java.util.stream.Stream;
 import org.codice.acdebugger.api.BreakpointProcessor;
 import org.codice.acdebugger.api.Debug;
@@ -25,7 +27,6 @@ import org.codice.acdebugger.impl.BreakpointInfo;
 import org.codice.acdebugger.impl.BreakpointLocation;
 
 /** Breakpoint processor capable of connecting to the backdoor bundle in the attached VM. */
-@SuppressWarnings("squid:S1191" /* Using the Java debugger API */)
 public class BackdoorProcessor implements BreakpointProcessor {
   @Override
   public Stream<BreakpointLocation> locations() {
@@ -37,7 +38,7 @@ public class BackdoorProcessor implements BreakpointProcessor {
     if (debug.backdoor().init(debug)) { // we are initialized or we managed to initialize
       return null;
     }
-    final MethodExitRequest request = debug.getEventRequestManager().createMethodExitRequest();
+    final MethodExitRequest request = debug.eventRequestManager().createMethodExitRequest();
 
     request.addClassFilter(location.getClassReference());
     return request;
@@ -45,7 +46,7 @@ public class BackdoorProcessor implements BreakpointProcessor {
 
   @Override
   public void process(BreakpointInfo info, Debug debug) throws Exception {
-    final MethodExitEvent event = (MethodExitEvent) debug.getEvent();
+    final MethodExitEvent event = (MethodExitEvent) debug.event();
     final ThreadReference thread = event.thread();
 
     debug.backdoor().init(debug, thread.frame(0).thisObject());

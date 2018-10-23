@@ -3,8 +3,10 @@
 # doPrivileged() blocks.
 
 com.fasterxml
-javax.servlet
-javax.servlet-api
+com.sun.
+java.
+javax.
+jdk.internal.
 org.apache
 org.boon
 org.eclipse
@@ -14,3 +16,4 @@ org.knopflerfish
 org.ops4j
 org.osgi
 org.springframework
+sun.

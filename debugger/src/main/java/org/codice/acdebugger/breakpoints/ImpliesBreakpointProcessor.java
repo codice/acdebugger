@@ -13,11 +13,13 @@
  */
 package org.codice.acdebugger.breakpoints;
 
+// NOSONAR - squid:S1191 - Using the Java debugger API
+
 import com.google.common.collect.ImmutableSet;
-import com.sun.jdi.ObjectReference;
-import com.sun.jdi.StackFrame;
-import com.sun.jdi.ThreadReference;
-import com.sun.jdi.request.EventRequest;
+import com.sun.jdi.ObjectReference; // NOSONAR
+import com.sun.jdi.StackFrame; // NOSONAR
+import com.sun.jdi.ThreadReference; // NOSONAR
+import com.sun.jdi.request.EventRequest; // NOSONAR
 import java.security.Permission;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -32,7 +34,6 @@ import org.codice.acdebugger.impl.BreakpointLocation;
  * Old version of a breakpoint processor that was attempting to intercept all calls to {@link
  * java.security.ProtectionDomain#implies(Permission)}.
  */
-@SuppressWarnings("squid:S1191" /* Using the Java debugger API */)
 public class ImpliesBreakpointProcessor implements BreakpointProcessor {
   private static final Set<BreakpointLocation> LOCATIONS =
       ImmutableSet.of(
@@ -66,7 +67,7 @@ public class ImpliesBreakpointProcessor implements BreakpointProcessor {
 
   @Override
   public EventRequest createRequest(Debug debug, BreakpointLocation l) throws Exception {
-    return debug.getEventRequestManager().createBreakpointRequest(l.getLocation());
+    return debug.eventRequestManager().createBreakpointRequest(l.getLocation());
   }
 
   @SuppressWarnings({

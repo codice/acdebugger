@@ -67,7 +67,7 @@ class SecurityServicePermissionImpliedInformation extends SecuritySolution
 
   @SuppressWarnings("squid:S106" /* this is a console application */)
   @Override
-  public void dump(String prefix) {
+  public void dump(boolean osgi, String prefix) {
     final String first = prefix + "IMPLIED PERMISSION FAILURE";
 
     System.out.println(ACDebugger.PREFIX);
@@ -86,7 +86,7 @@ class SecurityServicePermissionImpliedInformation extends SecuritySolution
     System.out.println(ACDebugger.PREFIX);
     System.out.println(ACDebugger.PREFIX + "SOLUTIONS");
     System.out.println(ACDebugger.PREFIX + "---------");
-    print();
+    print(osgi);
   }
 
   @Override

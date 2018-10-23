@@ -13,24 +13,26 @@
  */
 package org.codice.acdebugger.impl;
 
-import com.sun.jdi.Bootstrap;
-import com.sun.jdi.Method;
-import com.sun.jdi.ReferenceType;
-import com.sun.jdi.VirtualMachine;
-import com.sun.jdi.VirtualMachineManager;
-import com.sun.jdi.connect.AttachingConnector;
-import com.sun.jdi.connect.Connector.Argument;
-import com.sun.jdi.connect.IllegalConnectorArgumentsException;
-import com.sun.jdi.event.Event;
-import com.sun.jdi.event.EventIterator;
-import com.sun.jdi.event.EventQueue;
-import com.sun.jdi.event.EventSet;
-import com.sun.jdi.event.LocatableEvent;
-import com.sun.jdi.event.VMDisconnectEvent;
-import com.sun.jdi.request.BreakpointRequest;
-import com.sun.jdi.request.ClassPrepareRequest;
-import com.sun.jdi.request.EventRequest;
-import com.sun.jdi.request.EventRequestManager;
+// NOSONAR - squid:S1191 - Using the Java debugger API
+
+import com.sun.jdi.Bootstrap; // NOSONAR
+import com.sun.jdi.Method; // NOSONAR
+import com.sun.jdi.ReferenceType; // NOSONAR
+import com.sun.jdi.VirtualMachine; // NOSONAR
+import com.sun.jdi.VirtualMachineManager; // NOSONAR
+import com.sun.jdi.connect.AttachingConnector; // NOSONAR
+import com.sun.jdi.connect.Connector.Argument; // NOSONAR
+import com.sun.jdi.connect.IllegalConnectorArgumentsException; // NOSONAR
+import com.sun.jdi.event.Event; // NOSONAR
+import com.sun.jdi.event.EventIterator; // NOSONAR
+import com.sun.jdi.event.EventQueue; // NOSONAR
+import com.sun.jdi.event.EventSet; // NOSONAR
+import com.sun.jdi.event.LocatableEvent; // NOSONAR
+import com.sun.jdi.event.VMDisconnectEvent; // NOSONAR
+import com.sun.jdi.request.BreakpointRequest; // NOSONAR
+import com.sun.jdi.request.ClassPrepareRequest; // NOSONAR
+import com.sun.jdi.request.EventRequest; // NOSONAR
+import com.sun.jdi.request.EventRequestManager; // NOSONAR
 import java.io.IOException;
 import java.util.Iterator;
 import java.util.List;
@@ -46,7 +48,6 @@ import org.codice.acdebugger.api.BreakpointProcessor;
 import org.codice.acdebugger.api.Debug;
 
 /** This class provides the main implementation for processing breakpoint requests/callbacks. */
-@SuppressWarnings("squid:S1191" /* Using the Java debugger API */)
 public class Debugger {
   private static final String INFO_KEY = "info";
 
@@ -85,6 +86,15 @@ public class Debugger {
   }
 
   /**
+   * Sets wether or not we are debugging an OSGi system.
+   *
+   * @param osgi <code>true</code> if we are debugging an OSGi system; <code>false</code> if not
+   */
+  public void setOSGi(boolean osgi) {
+    context.setOSGi(osgi);
+  }
+
+  /**
    * Sets the continuous mode for the debugger in which case it will not fail any security
    * exceptions detected and accumulate and report on all occurrences or if it will stop when the
    * first security failure is detected.
@@ -94,7 +104,7 @@ public class Debugger {
    *     detected security failure
    */
   public void setContinuous(boolean continuous) {
-    context.setContinuousMode(continuous);
+    context.setContinuous(continuous);
   }
 
   /**
@@ -172,12 +182,12 @@ public class Debugger {
     map.put(HOST_KEY, hostArg);
     this.debug = new DebugImpl(context, connector.attach(map));
     debug.virtualMachine().setDebugTraceMode(VirtualMachine.TRACE_NONE);
+    System.out.println(ACDebugger.PREFIX);
     System.out.println(ACDebugger.PREFIX + "Attached to:");
     Stream.of(debug.virtualMachine().description().split("[\r\n]"))
         .map("  "::concat)
         .map(ACDebugger.PREFIX::concat)
         .forEach(System.out::println);
-    System.out.println(ACDebugger.PREFIX);
     return this;
   }
 
@@ -226,8 +236,8 @@ public class Debugger {
       }
       line += " missing permissions";
     }
-    System.out.println(line);
     System.out.println(ACDebugger.PREFIX);
+    System.out.println(line);
     while (context.isRunning()) {
       final EventSet eventSet = evtQueue.remove();
       final EventIterator i = eventSet.eventIterator();
@@ -248,7 +258,7 @@ public class Debugger {
   }
 
   private void add(BreakpointProcessor processor, BreakpointLocation l) throws Exception {
-    final EventRequestManager erm = debug.getEventRequestManager();
+    final EventRequestManager erm = debug.eventRequestManager();
     final ReferenceType clazz = debug.reflection().getClass(l.getClassSignature());
 
     if (clazz == null) {
@@ -300,7 +310,7 @@ public class Debugger {
         final PendingBreakpointInfo info = (PendingBreakpointInfo) oinfo;
 
         request.disable();
-        debug.getEventRequestManager().deleteEventRequest(request);
+        debug.eventRequestManager().deleteEventRequest(request);
         add(info.getProcessor(), info.getLocation());
       } else if (oinfo instanceof BreakpointInfo) {
         final String method = ((BreakpointInfo) oinfo).getLocation().getMethod();

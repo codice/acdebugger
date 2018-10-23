@@ -13,8 +13,10 @@
  */
 package org.codice.acdebugger.api;
 
-import com.sun.jdi.ClassType;
-import com.sun.jdi.ObjectReference;
+// NOSONAR - squid:S1191 - Using the Java debugger API
+
+import com.sun.jdi.ClassType; // NOSONAR
+import com.sun.jdi.ObjectReference; // NOSONAR
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.Map;
@@ -26,7 +28,6 @@ import javax.annotation.Nullable;
 import org.codice.acdebugger.common.ServicePermissionInfo;
 
 /** Provides permission-specific functionality. */
-@SuppressWarnings("squid:S1191" /* Using the Java debugger API */)
 public class PermissionUtil {
   /** Internal key where information about service properties is cached. */
   private static final String SERVICE_PROPERTY_CACHE = "debug.service.property.cache";
@@ -48,34 +49,34 @@ public class PermissionUtil {
   }
 
   /**
-   * Checks if a bundle is or was temporarily granted a given permission (as long as the information
+   * Checks if a domain is or was temporarily granted a given permission (as long as the information
    * was previously cached using {@link #grant(String, String)}) or {@link #grant(String, Set)}.
    *
    * <p><i>Note:</i> This method only looks at the local cache.
    *
-   * @param bundle the bundle to check for
+   * @param domain the bundle name or domain location to check for
    * @param permission the permission string to check for
-   * @return <code>true</code> if the bundle is or was granted the specified permission; <code>
+   * @return <code>true</code> if the domain is or was granted the specified permission; <code>
    *     false</code> if not
    */
-  public boolean implies(String bundle, String permission) {
-    return debug.getContext().hasPermission(bundle, permission);
+  public boolean implies(String domain, String permission) {
+    return debug.context().hasPermission(domain, permission);
   }
 
   /**
-   * Checks if a bundle is or was temporarily granted the given permissions (as long as the
+   * Checks if a domain is or was temporarily granted the given permissions (as long as the
    * information was previously cached using {@link #grant(String, String)}) or {@link
    * #grant(String, Set)}.
    *
    * <p><i>Note:</i> This method only looks at the local cache.
    *
-   * @param bundle the bundle to check for
+   * @param domain the bundle name or domain location to check for
    * @param permissions the permission strings to check for
-   * @return <code>true</code> if the bundle is or was granted the specified permissions; <code>
+   * @return <code>true</code> if the domain is or was granted the specified permissions; <code>
    *     false</code> if not
    */
-  public boolean implies(String bundle, Set<String> permissions) {
-    return debug.getContext().hasPermissions(bundle, permissions);
+  public boolean implies(String domain, Set<String> permissions) {
+    return debug.context().hasPermissions(domain, permissions);
   }
 
   /**
@@ -133,47 +134,47 @@ public class PermissionUtil {
   }
 
   /**
-   * Temporarily grants a bundle a set of permissions if not already granted.
+   * Temporarily grants a domain a set of permissions if not already granted.
    *
    * <p><i>Note:</i> This method will automatically grant the permissions in the attached VM if the
    * debugger is running in continuous mode and granting was enabled and if attached to VM running
-   * the backdoor bundle.
+   * the backdoor.
    *
-   * @param bundle the bundle to grant the permissions to
+   * @param domain the bundle name or domain location to grant the permissions to
    * @param permissions the permissions to be granted
-   * @return <code>true</code> if the permissions were granted to the specified bundle; <code>false
+   * @return <code>true</code> if the permissions were granted to the specified domain; <code>false
    *     </code> if at least one was already granted
    */
-  public boolean grant(String bundle, Set<String> permissions) {
-    if (bundle == null) {
+  public boolean grant(String domain, Set<String> permissions) {
+    if (domain == null) {
       return false;
     }
-    return permissions.stream().map(p -> grant(bundle, p)).reduce(true, Boolean::logicalAnd);
+    return permissions.stream().map(p -> grant(domain, p)).reduce(true, Boolean::logicalAnd);
   }
 
   /**
-   * Temporarily grants a bundle a given permission if not already granted.
+   * Temporarily grants a domain a given permission if not already granted.
    *
    * <p><i>Note:</i> This method will automatically grant the permission in the attached VM if the
    * debugger is running in continuous mode and granting was enabled and if attached to VM running
-   * the backdoor bundle.
+   * the backdoor.
    *
-   * @param bundle the bundle to grant the permission to
+   * @param domain the bundle name or domain location to grant the permission to
    * @param permission the permission to be granted
-   * @return <code>true</code> if the permission was granted to the specified bundle; <code>false
+   * @return <code>true</code> if the permission was granted to the specified domain; <code>false
    *     </code> if it was already granted
    */
   @SuppressWarnings({
     "squid:S1181", /* letting VirtualMachineErrors bubble out directly, so ok to catch Throwable */
     "squid:S1148" /* this is a console application */
   })
-  public boolean grant(String bundle, String permission) {
-    final boolean granted = debug.getContext().grantPermission(bundle, permission);
+  public boolean grant(String domain, String permission) {
+    final boolean granted = debug.context().grantPermission(domain, permission);
 
     if (granted && debug.isGranting() && debug.isContinuous()) {
       // try to grant the permission in the VM via the backdoor
       try {
-        debug.backdoor().grantPermission(debug, bundle, permission);
+        debug.backdoor().grantPermission(debug, domain, permission);
       } catch (VirtualMachineError e) {
         throw e;
       } catch (IllegalStateException e) { // ignore and continue
@@ -230,15 +231,16 @@ public class PermissionUtil {
             .reflection()
             .invoke(
                 permission, "getActions", ReflectionUtil.METHOD_SIGNATURE_NO_ARGS_STRING_RESULT);
+    final ReflectionUtil reflection = debug.reflection();
+    final boolean isFilePermission;
 
-    if (debug.reflection().isInstance("Lorg/osgi/framework/ServicePermission;", permission)) {
+    if (reflection.isInstance("Lorg/osgi/framework/ServicePermission;", permission)) {
       // for ServicePermission, we typically get something like "(service.id=14)"
       // for the permission name which is not useful; so we first try to get the set
       // of object classes representing the services and if we get a set then we can
       // create permissions for each names. If we get null then we typically can rely
       // on the permission name
-      final String[] objectClass =
-          debug.reflection().get(permission, "objectClass", "[Ljava/lang/String;");
+      final String[] objectClass = reflection.get(permission, "objectClass", "[Ljava/lang/String;");
 
       if (objectClass != null) {
         return Stream.of(objectClass)
@@ -248,15 +250,19 @@ public class PermissionUtil {
                         obj.name(), n, actions))
             .collect(Collectors.toSet());
       }
+      isFilePermission = false;
+    } else {
+      isFilePermission = reflection.isInstance("Ljava/io/FilePermission;", permission);
+    }
+    String name =
+        reflection.invoke(
+            permission, "getName", ReflectionUtil.METHOD_SIGNATURE_NO_ARGS_STRING_RESULT);
+
+    if (isFilePermission) {
+      name = debug.properties().compress(debug, name);
     }
     return Collections.singleton(
-        org.codice.acdebugger.common.PermissionUtil.getPermissionString(
-            obj.name(),
-            debug
-                .reflection()
-                .invoke(
-                    permission, "getName", ReflectionUtil.METHOD_SIGNATURE_NO_ARGS_STRING_RESULT),
-            actions));
+        org.codice.acdebugger.common.PermissionUtil.getPermissionString(obj.name(), name, actions));
   }
 
   /**
@@ -285,14 +291,14 @@ public class PermissionUtil {
 
       if (debug.isContinuous()) {
         // first make sure we cache all permissions since we granted them if they were missing
-        permissionStrings.forEach(p -> debug.getContext().grantPermission(bundle, p));
+        permissionStrings.forEach(p -> debug.context().grantPermission(bundle, p));
       }
       // next cache all info we have about pre-existed implied permissions
       // and remove them from the complete list of permissions since they were not missing
       info.getImpliedPermissionStrings()
           .stream()
           .peek(permissionStrings::remove)
-          .forEach(p -> debug.getContext().grantPermission(bundle, p));
+          .forEach(p -> debug.context().grantPermission(bundle, p));
       if (!info.implies()) { // we didn't have all permissions
         return permissionStrings;
       }

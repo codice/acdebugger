@@ -1,0 +1,12 @@
+# Ordered lists of system properties to expand for file permission names
+# and file-based domain locations.
+
+solr.ssl.keystore
+solr.ssl.truststore
+java.io.tmpdir
+java.home
+ddf.home.perm
+ddf.home
+solr.home
+solr.solr.home
+/

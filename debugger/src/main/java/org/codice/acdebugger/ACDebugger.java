@@ -131,42 +131,27 @@ public class ACDebugger implements Callable<Void> {
   )
   private boolean reconnect = false;
 
+  @Option(
+    names = {"--osgi"},
+    description =
+        "Indicates the VM we are able to debug is an OSGi container. (default: ${DEFAULT-VALUE})",
+    arity = "0..1"
+  )
+  private boolean osgi = true;
+
   @Override
   @SuppressWarnings("squid:S106" /* this is a console application */)
   public Void call() throws Exception {
-    if (reconnect && !continuous) {
-      System.err.println(
-          ACDebugger.PREFIX
-              + "--reconnect can only be specified if --continuous is also specified");
-      System.exit(2);
-    }
+    init();
     while (true) {
-      final long endTime = System.currentTimeMillis() + TimeUnit.MINUTES.toMillis(timeout);
-      Debugger debugger = null;
-
       // attach to VM
+      System.out.println(ACDebugger.PREFIX);
       System.out.println(ACDebugger.PREFIX + new Date());
       System.out.println(ACDebugger.PREFIX + "Attaching to " + host + ":" + port + " ...");
-      while (debugger == null) {
-        try {
-          debugger = new Debugger(transport, host, port).attach();
-        } catch (ConnectException e) {
-          if (!wait || (System.currentTimeMillis() > endTime)) {
-            System.err.println(
-                ACDebugger.PREFIX
-                    + "Unable to connect to "
-                    + host
-                    + ":"
-                    + port
-                    + " over "
-                    + transport);
-            System.exit(1);
-          } else {
-            Thread.sleep(5000L);
-          }
-        }
-      }
+      final Debugger debugger = attach();
+
       // configure options
+      debugger.setOSGi(osgi);
       debugger.setContinuous(continuous);
       debugger.setDebug(debug);
       debugger.setGranting(granting);
@@ -184,7 +169,50 @@ public class ACDebugger implements Callable<Void> {
       if (!reconnect) {
         return null;
       }
-      System.out.println();
+      System.out.println(ACDebugger.PREFIX);
+    }
+  }
+
+  @SuppressWarnings("squid:S106" /* this is a console application */)
+  private void init() {
+    if (reconnect && !continuous) {
+      System.err.println(
+          ACDebugger.PREFIX
+              + "--reconnect can only be specified if --continuous is also specified");
+      System.exit(2);
+    }
+    if (osgi) {
+      System.out.println(ACDebugger.PREFIX + "OSGi Debugging");
+    } else {
+      System.out.println(ACDebugger.PREFIX + "Non-OSGi Debugging");
+    }
+  }
+
+  @SuppressWarnings({
+    "squid:S00112", /* Forced to by the Java debugger API */
+    "squid:S106" /* this is a console application */
+  })
+  private Debugger attach() throws Exception {
+    final long endTime = System.currentTimeMillis() + TimeUnit.MINUTES.toMillis(timeout);
+
+    while (true) {
+      try {
+        return new Debugger(transport, host, port).attach();
+      } catch (ConnectException e) {
+        if (!wait || (System.currentTimeMillis() > endTime)) {
+          System.err.println(
+              ACDebugger.PREFIX
+                  + "Unable to connect to "
+                  + host
+                  + ":"
+                  + port
+                  + " over "
+                  + transport);
+          System.exit(1);
+        } else {
+          Thread.sleep(5000L);
+        }
+      }
     }
   }
 }

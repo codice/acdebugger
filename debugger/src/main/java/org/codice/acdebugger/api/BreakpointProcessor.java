@@ -13,7 +13,9 @@
  */
 package org.codice.acdebugger.api;
 
-import com.sun.jdi.request.EventRequest;
+// NOSONAR - squid:S1191 - Using the Java debugger API
+
+import com.sun.jdi.request.EventRequest; // NOSONAR
 import java.util.stream.Stream;
 import javax.annotation.Nullable;
 import org.codice.acdebugger.impl.BreakpointInfo;
@@ -24,7 +26,6 @@ import org.codice.acdebugger.impl.BreakpointLocation;
  * want to be called for and are then consulted to create requests with the debugger and finally
  * consulted to process the debugging callback.
  */
-@SuppressWarnings("squid:S1191" /* Using the Java debugger API */)
 public interface BreakpointProcessor {
   /**
    * Creates a location for anywhere in a given class.

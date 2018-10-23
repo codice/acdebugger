@@ -18,6 +18,10 @@ import javax.annotation.Nullable;
 
 /** Provides permission-specific functionality. */
 public class PermissionUtil {
+  private PermissionUtil() {
+    throw new UnsupportedOperationException();
+  }
+
   /**
    * Gets a permission string compatible with the policy file format based on the given policy
    * class, name and actions.

@@ -2,6 +2,8 @@
 //More information can be found on the Jenkins Documentation page https://jenkins.io/doc/
 library 'github-utils-shared-library@master'
 
+@Library('github.com/connexta/cx-pipeline-library@master') _
+
 pipeline {
     agent { label 'linux-small' }
     options {
@@ -27,6 +29,7 @@ pipeline {
     stages {
         stage('Setup') {
             steps {
+                dockerd {}
                 slackSend color: 'good', message: "STARTED: ${JOB_NAME} ${BUILD_NUMBER} ${BUILD_URL}"
                 withCredentials([usernameColonPassword(credentialsId: 'cxbot', variable: 'GITHUB_TOKEN')]) {
                     postCommentIfPR("Internal build has been started. Your results will be available at completion. See build progress in [legacy Jenkins UI](${BUILD_URL}) or in [Blue Ocean UI](${BUILD_URL}display/redirect).", "${GITHUB_USERNAME}", "${GITHUB_REPONAME}", "${GITHUB_TOKEN}")

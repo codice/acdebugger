@@ -142,11 +142,12 @@ Creates an executable jar with the debugger tool.
 Defines a library of common classes used by both the backdoor and the debugger. This artifact is embedded inside the backdoor bundle.
 
 #### acdebugger-distribution
-Creates zip and tar distributions of the acdebugger tool
+Creates zip and tar distributions of the acdebugger tool.
+Refer to [this page](docs/installing.md) for more information on installing the distribution.
 
 #### acdebugger-docker
-Creates a docker image for acdebugger
-Refer to [this page](docs/docker.md) for more information on using the docker container
+Creates a docker image for acdebugger.
+Refer to [this page](docs/docker.md) for more information on using the docker container.
 
 ### Future iterations
 Future implementations will:

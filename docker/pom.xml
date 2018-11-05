@@ -29,7 +29,7 @@
 
     <properties>
         <docker.base.image.repo>openjdk</docker.base.image.repo>
-        <docker.base.image.version>11-jre-slim</docker.base.image.version>
+        <docker.base.image.version>11-jdk-slim</docker.base.image.version>
         <docker.ddf.base.version>2.14-alpine</docker.ddf.base.version>
     </properties>
 

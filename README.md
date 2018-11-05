@@ -126,6 +126,8 @@ The following modules are defined:
 * acdebugger-backdoor
 * acdebugger-debugger
 * acdebugger-common
+* acdebugger-distribution
+* acdebugger-docker
  
 #### acdebugger-api
 Defines a bundle that provides an interface for a permission service which is used by the backdoor bundle to temporarily grant missing permissions. This service should be registered by the VM.
@@ -138,6 +140,13 @@ Creates an executable jar with the debugger tool.
 
 #### acdebugger-common
 Defines a library of common classes used by both the backdoor and the debugger. This artifact is embedded inside the backdoor bundle.
+
+#### acdebugger-distribution
+Creates zip and tar distributions of the acdebugger tool
+
+#### acdebugger-docker
+Creates a docker image for acdebugger
+Refer to [this page](docs/docker.md) for more information on using the docker container
 
 ### Future iterations
 Future implementations will:

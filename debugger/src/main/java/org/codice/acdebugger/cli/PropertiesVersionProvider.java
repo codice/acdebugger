@@ -1,5 +1,6 @@
 package org.codice.acdebugger.cli;
 
+import java.io.InputStream;
 import java.net.URL;
 import java.util.Properties;
 import picocli.CommandLine.IVersionProvider;
@@ -23,12 +24,16 @@ public class PropertiesVersionProvider implements IVersionProvider {
 
   @Override
   public String[] getVersion() throws Exception {
-    URL url = getClass().getResource("/version.properties");
+    final URL url = getClass().getResource("/version.properties");
+
     if (url == null) {
       return new String[] {"No version.properties file found in the classpath."};
     }
-    Properties properties = new Properties();
-    properties.load(url.openStream());
+    final Properties properties = new Properties();
+
+    try (final InputStream is = url.openStream()) {
+      properties.load(is);
+    }
     return new String[] {
       properties.getProperty(TITLE_PROPERTY_NAME)
           + " version: \""

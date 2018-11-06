@@ -13,6 +13,7 @@
  */
 package org.codice.acdebugger.impl;
 
+import com.google.common.annotations.VisibleForTesting;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -66,7 +67,7 @@ public class DebugContext {
   }
 
   /**
-   * Accesses system properties util functionality.
+   * Accesses system properties util functionnality.
    *
    * @return a system properties utility for the attached VM
    */
@@ -82,8 +83,8 @@ public class DebugContext {
    * @return <code>true</code> if the domain has or was granted the specified permission; <code>
    *     false</code> if not
    */
-  public boolean hasPermission(String domain, String permission) {
-    if (domain == null) { // bundle-0 always has all permissions
+  public boolean hasPermission(@Nullable String domain, String permission) {
+    if (domain == null) { // boot domain/bundle-0 always has all permissions
       return true;
     }
     return permissions
@@ -99,8 +100,8 @@ public class DebugContext {
    * @return <code>true</code> if the bundle is or was granted the specified permissions; <code>
    *     false</code> if not
    */
-  public boolean hasPermissions(String domain, Set<String> permissions) {
-    if (domain == null) { // bundle-0 always has all permissions
+  public boolean hasPermissions(@Nullable String domain, Set<String> permissions) {
+    if (domain == null) { // boot domain/bundle-0 always has all permissions
       return true;
     }
     return this.permissions
@@ -117,7 +118,7 @@ public class DebugContext {
    *     </code> if it was already granted
    */
   public boolean grantPermission(String domain, String permission) {
-    if (domain == null) { // bundle-0 always has all permissions
+    if (domain == null) { // boot domain/bundle-0 always has all permissions
       return false;
     }
     return permissions.computeIfAbsent(domain, b -> new ConcurrentSkipListSet<>()).add(permission);
@@ -132,7 +133,7 @@ public class DebugContext {
    *     </code> if at least one was already granted
    */
   public boolean grantPermissions(String domain, Set<String> permissions) {
-    if (domain == null) {
+    if (domain == null) { // boot domain/bundle-0 always has all permissions
       return false;
     }
     final Set<String> cache =
@@ -307,7 +308,7 @@ public class DebugContext {
   }
 
   /**
-   * Checks whether or not to consider <code>doPrivileged()</code> blocks when analysing security
+   * Checks whether or not to consider <code>doPrivileged()</code> blocks when analyzing security
    * failures.
    *
    * @return <code>true</code> to consider <code>doPrivileged()</code> blocks for possible
@@ -358,6 +359,11 @@ public class DebugContext {
         recordUnacceptableFailure(failure);
       }
     }
+  }
+
+  @VisibleForTesting
+  List<SecurityFailure> getFailures() {
+    return failures;
   }
 
   @SuppressWarnings("squid:S106" /* this is a console application */)

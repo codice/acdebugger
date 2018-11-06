@@ -16,8 +16,8 @@ package org.codice.acdebugger.impl;
 // NOSONAR - squid:S1191 - Using the Java debugger API
 
 import com.sun.jdi.AbsentInformationException; // NOSONAR
+import com.sun.jdi.ClassType; // NOSONAR
 import com.sun.jdi.Location; // NOSONAR
-import com.sun.jdi.ReferenceType; // NOSONAR
 import javax.annotation.Nullable;
 
 /** This class keeps track of a location in the code where we want to debug. */
@@ -25,7 +25,7 @@ public class BreakpointLocation {
   private final String classSignature;
   private final String method;
   private final int linenum;
-  private volatile ReferenceType clazz = null;
+  private volatile ClassType clazz = null;
 
   /**
    * Creates a location in a given class.
@@ -46,7 +46,7 @@ public class BreakpointLocation {
    * @return the reference to the class associated with this location
    * @throws IllegalStateException if the reference has not been detected yet
    */
-  public ReferenceType getClassReference() {
+  public ClassType getClassReference() {
     if (clazz == null) {
       throw new IllegalStateException("class reference not available");
     }
@@ -122,7 +122,7 @@ public class BreakpointLocation {
    *
    * @param clazz the reference to the class for this location
    */
-  void setClassReference(ReferenceType clazz) {
+  void setClassReference(ClassType clazz) {
     this.clazz = clazz;
   }
 }

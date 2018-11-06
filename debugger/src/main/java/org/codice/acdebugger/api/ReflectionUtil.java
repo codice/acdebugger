@@ -16,17 +16,19 @@ package org.codice.acdebugger.api;
 // NOSONAR - squid:S1191 - Using the Java debugger API
 
 import com.sun.jdi.ArrayReference; // NOSONAR
+import com.sun.jdi.ArrayType; // NOSONAR
 import com.sun.jdi.BooleanValue; // NOSONAR
 import com.sun.jdi.ByteValue; // NOSONAR
 import com.sun.jdi.CharValue; // NOSONAR
-import com.sun.jdi.ClassObjectReference; // NOSONAR
 import com.sun.jdi.ClassType; // NOSONAR
 import com.sun.jdi.DoubleValue; // NOSONAR
 import com.sun.jdi.Field; // NOSONAR
 import com.sun.jdi.FloatValue; // NOSONAR
 import com.sun.jdi.IntegerValue; // NOSONAR
+import com.sun.jdi.InterfaceType; // NOSONAR
 import com.sun.jdi.LongValue; // NOSONAR
 import com.sun.jdi.Method; // NOSONAR
+import com.sun.jdi.Mirror; // NOSONAR
 import com.sun.jdi.ObjectCollectedException; // NOSONAR
 import com.sun.jdi.ObjectReference; // NOSONAR
 import com.sun.jdi.ReferenceType; // NOSONAR
@@ -136,32 +138,40 @@ public class ReflectionUtil {
       return false;
     } else if (signature.equals(type.signature())) {
       return true;
-    } else if (type instanceof ClassType) {
-      final ClassType ctype = (ClassType) type;
+    } else {
       // start by checking our cache
-      final Map<String, Map<ClassType, Boolean>> signatureCache =
+      final Map<String, Map<Type, Boolean>> signatureCache =
           context.computeIfAbsent(ReflectionUtil.ASSIGNABLE_FROM_CACHE, ConcurrentHashMap::new);
-      final Map<ClassType, Boolean> cache =
+      final Map<Type, Boolean> cache =
           signatureCache.computeIfAbsent(signature, s -> new ConcurrentHashMap());
-      final Boolean is = cache.get(ctype);
+      final Boolean is = cache.get(type);
 
       if (is != null) {
         return is;
       }
-      if (ctype
-          .allInterfaces()
-          .stream()
-          .map(ReferenceType::signature)
-          .anyMatch(signature::equals)) {
-        cache.put(ctype, true);
-        return true;
-      }
-      final boolean result = isAssignableFrom(signature, ctype.superclass());
+      final boolean result;
 
-      cache.put(ctype, result);
+      if (type instanceof ClassType) {
+        final ClassType ctype = (ClassType) type;
+
+        result =
+            ctype.allInterfaces().stream().map(ReferenceType::signature).anyMatch(signature::equals)
+                || isAssignableFrom(signature, ctype.superclass());
+      } else if (type instanceof InterfaceType) {
+        final InterfaceType itype = (InterfaceType) type;
+
+        result =
+            itype
+                .superinterfaces()
+                .stream()
+                .map(ReferenceType::signature)
+                .anyMatch(signature::equals);
+      } else {
+        result = false;
+      }
+      cache.put(type, result);
       return result;
     }
-    return false;
   }
 
   /**
@@ -203,6 +213,7 @@ public class ReflectionUtil {
   public Stream<ClassType> classes(String signature) {
     return vm.classesByName(signature.substring(1, signature.length() - 1).replace('/', '.'))
         .stream()
+        .filter(ClassType.class::isInstance)
         .map(ClassType.class::cast);
   }
 
@@ -283,9 +294,7 @@ public class ReflectionUtil {
     if (obj == null) {
       return null;
     }
-    final ReferenceType type = obj.referenceType();
-
-    return get(obj, type.fieldByName(name), signature);
+    return get(obj, obj.referenceType().fieldByName(name), signature);
   }
 
   /**
@@ -305,10 +314,7 @@ public class ReflectionUtil {
   public <T> T get(
       @Nullable ObjectReference obj, @Nullable Field field, @Nullable String signature) {
     if ((obj != null) && (field != null)) {
-      final Value value =
-          (obj instanceof ClassObjectReference)
-              ? ((ClassObjectReference) obj).reflectedType().getValue(field)
-              : obj.getValue(field);
+      final Value value = obj.getValue(field);
 
       if ((value != null) && ((signature == null) || isInstance(signature, value))) {
         return (T) fromMirror(value);
@@ -335,9 +341,7 @@ public class ReflectionUtil {
     if (clazz == null) {
       return null;
     }
-    final ReferenceType type = clazz.classObject().reflectedType();
-
-    return getStatic(clazz, type.fieldByName(name), signature);
+    return getStatic(clazz, clazz.fieldByName(name), signature);
   }
 
   /**
@@ -388,8 +392,7 @@ public class ReflectionUtil {
     if (obj == null) {
       return null;
     }
-    final ReferenceType type = obj.referenceType();
-    final Method method = findMethod(type, name, signature);
+    final Method method = findMethod(obj.referenceType(), name, signature);
 
     return (method != null) ? invoke(obj, method, args) : null;
   }
@@ -440,43 +443,22 @@ public class ReflectionUtil {
    * @throws Error if a failure occurs while invoking the method of if the method could not be
    *     located
    */
-  @SuppressWarnings("squid:S00112" /* Not meant to be catchable so keeping it generic */)
   @Nullable
   public <T> T invoke(@Nullable ObjectReference obj, @Nullable Method method, Object... args) {
-    if ((obj == null) || (method == null)) {
-      return null;
-    }
-    final List<StringReference> prefs = new ArrayList<>(args.length);
-
-    try {
-      // if we are not using INVOKE_SINGLE_THREADED, then other threads starts which means we
-      // could get another breakpoint event which will be processed in parallel and that means
-      // that us invoking code here will resume all threads which will create
-      // <sun.jdi.InvalidStackFrameException: Thread has been resumed> for other breakpoint
-      // processors but on the other end, if we use INVOKE_SINGLE_THREADED, we might create a
-      // deadlock if the code we are calling requires a lock that another suspended thread has but
-      // again this means that if that thread is currently suspended because of a breakpoint, it
-      // will now be resumed preventing us from being able to process it.
-      final List<Value> values = new ArrayList<>(args.length);
-
-      for (final Object arg : args) {
-        if (arg instanceof String) {
-          final StringReference pref = protect(() -> toMirror(arg));
-
-          prefs.add(pref);
-          values.add(pref);
-        } else {
-          values.add(toMirror(arg));
-        }
-      }
-      return (T)
-          fromMirror(
-              obj.invokeMethod(thread(), method, values, ObjectReference.INVOKE_SINGLE_THREADED));
-    } catch (Exception e) {
-      throw new Error(e);
-    } finally {
-      prefs.forEach(StringReference::enableCollection);
-    }
+    // if we are not using INVOKE_SINGLE_THREADED, then other threads starts which means we
+    // could get another breakpoint event which will be processed in parallel and that means
+    // that us invoking code here will resume all threads which will create
+    // <sun.jdi.InvalidStackFrameException: Thread has been resumed> for other breakpoint
+    // processors but on the other end, if we use INVOKE_SINGLE_THREADED, we might create a
+    // deadlock if the code we are calling requires a lock that another suspended thread has but
+    // again this means that if that thread is currently suspended because of a breakpoint, it
+    // will now be resumed preventing us from being able to process it.
+    return invoke0(
+        obj,
+        method,
+        args,
+        values ->
+            obj.invokeMethod(thread(), method, values, ObjectReference.INVOKE_SINGLE_THREADED));
   }
 
   /**
@@ -501,13 +483,12 @@ public class ReflectionUtil {
     if (clazz == null) {
       return null;
     }
-    final ReferenceType type = clazz.classObject().reflectedType();
-    final Method method = findMethod(type, name, signature);
+    final Method method = findMethod(clazz, name, signature);
 
     if (method == null) {
       throw new Error(
           String.format(
-              "could not find static method '%s[%s]' for: %s", name, signature, type.name()));
+              "could not find static method '%s[%s]' for: %s", name, signature, clazz.name()));
     }
     return invokeStatic(clazz, method, args);
   }
@@ -526,43 +507,22 @@ public class ReflectionUtil {
    * @throws Error if a failure occurs while invoking the method of if the method could not be
    *     located
    */
-  @SuppressWarnings("squid:S00112" /* Not meant to be catchable so keeping it generic */)
   @Nullable
   public <T> T invokeStatic(@Nullable ClassType clazz, @Nullable Method method, Object... args) {
-    if ((clazz == null) || (method == null)) {
-      return null;
-    }
-    final List<StringReference> prefs = new ArrayList<>(args.length);
-
-    try {
-      // if we are not using INVOKE_SINGLE_THREADED, then other threads starts which means we
-      // could get another breakpoint event which will be processed in parallel and that means
-      // that us invoking code here will resume all threads which will create
-      // <sun.jdi.InvalidStackFrameException: Thread has been resumed> for other breakpoint
-      // processors but on the other end, if we use INVOKE_SINGLE_THREADED, we might create a
-      // deadlock if the code we are calling requires a lock that another suspended thread has but
-      // again this means that if that thread is currently suspended because of a breakpoint, it
-      // will now be resumed preventing us from being able to process it.
-      final List<Value> values = new ArrayList<>(args.length);
-
-      for (final Object arg : args) {
-        if (arg instanceof String) {
-          final StringReference pref = protect(() -> toMirror(arg));
-
-          prefs.add(pref);
-          values.add(pref);
-        } else {
-          values.add(toMirror(arg));
-        }
-      }
-      return (T)
-          fromMirror(
-              clazz.invokeMethod(thread(), method, values, ObjectReference.INVOKE_SINGLE_THREADED));
-    } catch (Exception e) {
-      throw new Error(e);
-    } finally {
-      prefs.forEach(StringReference::enableCollection);
-    }
+    // if we are not using INVOKE_SINGLE_THREADED, then other threads starts which means we
+    // could get another breakpoint event which will be processed in parallel and that means
+    // that us invoking code here will resume all threads which will create
+    // <sun.jdi.InvalidStackFrameException: Thread has been resumed> for other breakpoint
+    // processors but on the other end, if we use INVOKE_SINGLE_THREADED, we might create a
+    // deadlock if the code we are calling requires a lock that another suspended thread has but
+    // again this means that if that thread is currently suspended because of a breakpoint, it
+    // will now be resumed preventing us from being able to process it.
+    return invoke0(
+        clazz,
+        method,
+        args,
+        values ->
+            clazz.invokeMethod(thread(), method, values, ObjectReference.INVOKE_SINGLE_THREADED));
   }
 
   /**
@@ -579,44 +539,27 @@ public class ReflectionUtil {
    *     <code>null</code> if <code>type</code> or <code>ctor</code> is <code>null</code>
    * @throws Error if a failure occurs while invoking the constructor
    */
-  @SuppressWarnings("squid:S00112" /* Not meant to be catchable so keeping it generic */)
   @Nullable
   public <T extends ObjectReference> T newInstance(
       @Nullable ClassType type, @Nullable Method ctor, Object... args) {
-    if (type == null) {
-      return null;
-    }
-    final List<StringReference> prefs = new ArrayList<>(args.length);
-
-    try {
-      final List<Value> values = new ArrayList<>(args.length);
-
-      for (final Object arg : args) {
-        if (arg instanceof String) {
-          final StringReference pref = protect(() -> toMirror(arg));
-
-          prefs.add(pref);
-          values.add(pref);
-        } else {
-          values.add(toMirror(arg));
-        }
-      }
-      // because newly created refs can be garbage collected at any time, we need to protect them
-      return (T)
-          protect(
-              () ->
-                  type.newInstance(
-                      thread(),
-                      ctor,
-                      values,
-                      ObjectReference.INVOKE_SINGLE_THREADED
-                          // (Debugger.SUSPEND_ALL ? 0 : ObjectReference.INVOKE_SINGLE_THREADED)
-                          | ObjectReference.INVOKE_NONVIRTUAL));
-    } catch (Exception e) {
-      throw new Error(e);
-    } finally {
-      prefs.forEach(StringReference::enableCollection);
-    }
+    // if we are not using INVOKE_SINGLE_THREADED, then other threads starts which means we
+    // could get another breakpoint event which will be processed in parallel and that means
+    // that us invoking code here will resume all threads which will create
+    // <sun.jdi.InvalidStackFrameException: Thread has been resumed> for other breakpoint
+    // processors but on the other end, if we use INVOKE_SINGLE_THREADED, we might create a
+    // deadlock if the code we are calling requires a lock that another suspended thread has but
+    // again this means that if that thread is currently suspended because of a breakpoint, it
+    // will now be resumed preventing us from being able to process it.
+    return invoke0(
+        type,
+        ctor,
+        args,
+        values ->
+            type.newInstance(
+                thread(),
+                ctor,
+                values,
+                ObjectReference.INVOKE_SINGLE_THREADED | ObjectReference.INVOKE_NONVIRTUAL));
   }
 
   /**
@@ -666,7 +609,8 @@ public class ReflectionUtil {
    *     not be located
    */
   @Nullable
-  public <T extends ObjectReference> T newInstance(String type, String signature, Object... args) {
+  public <T extends ObjectReference> T newInstance(
+      @Nullable String type, String signature, Object... args) {
     if (type == null) {
       return null;
     }
@@ -683,7 +627,7 @@ public class ReflectionUtil {
    * @throws Error if a failure occurs while locating the enum value
    */
   @Nullable
-  public ObjectReference enumValue(ReferenceType type, String value) {
+  public ObjectReference enumValue(@Nullable ReferenceType type, String value) {
     if (type == null) {
       return null;
     }
@@ -743,7 +687,7 @@ public class ReflectionUtil {
     } else if (obj instanceof String) {
       return (T) vm.mirrorOf((String) obj);
     } else if (obj instanceof Void) {
-      return (T) vm.mirrorOfVoid();
+      return (T) getVoid();
     } else if (obj == null) {
       return null;
     } else if (obj instanceof Value) {
@@ -772,40 +716,40 @@ public class ReflectionUtil {
    *     primitive, string, array of primitive or strings
    */
   @Nullable
-  public Object fromMirror(@Nullable Value obj) {
+  public <T> T fromMirror(@Nullable Value obj) {
     if (obj instanceof BooleanValue) {
-      return ((BooleanValue) obj).booleanValue();
+      return (T) (Boolean) ((BooleanValue) obj).booleanValue();
     } else if (obj instanceof ByteValue) {
-      return ((ByteValue) obj).byteValue();
+      return (T) (Byte) ((ByteValue) obj).byteValue();
     } else if (obj instanceof CharValue) {
-      return ((CharValue) obj).charValue();
+      return (T) (Character) ((CharValue) obj).charValue();
     } else if (obj instanceof DoubleValue) {
-      return ((DoubleValue) obj).doubleValue();
+      return (T) (Double) ((DoubleValue) obj).doubleValue();
     } else if (obj instanceof FloatValue) {
-      return ((FloatValue) obj).floatValue();
+      return (T) (Float) ((FloatValue) obj).floatValue();
     } else if (obj instanceof IntegerValue) {
-      return ((IntegerValue) obj).intValue();
+      return (T) (Integer) ((IntegerValue) obj).intValue();
     } else if (obj instanceof LongValue) {
-      return ((LongValue) obj).longValue();
+      return (T) (Long) ((LongValue) obj).longValue();
     } else if (obj instanceof ShortValue) {
-      return ((ShortValue) obj).shortValue();
+      return (T) (Short) ((ShortValue) obj).shortValue();
     } else if (obj instanceof StringReference) {
-      return ((StringReference) obj).value();
+      return (T) ((StringReference) obj).value();
     } else if (obj instanceof VoidValue) {
       return null;
     } else if (obj == null) {
       return null;
     } else if (obj instanceof ArrayReference) {
-      return fromMirror((ArrayReference) obj);
+      return (T) fromMirror((ArrayReference) obj);
     }
-    return obj; // must be an ObjectReference so keep it as is
+    return (T) obj; // must be an ObjectReference so keep it as is
   }
 
   /**
    * Gets a class corresponding to the given signature.
    *
    * @param signature the signature for which to return a corresponding class
-   * @return the corresponding class for primitive or strings; {@linl Value} for all others
+   * @return the corresponding class for primitive or strings; {@link Value} for all others
    */
   public Class<?> getType(String signature) {
     switch (signature) {
@@ -834,8 +778,40 @@ public class ReflectionUtil {
     }
   }
 
+  @SuppressWarnings("squid:S00112" /* Not meant to be catchable so keeping it generic */)
+  private <T, M extends Mirror> T invoke0(
+      @Nullable M m,
+      @Nullable Method method,
+      Object[] args,
+      ThrowingFunction<List<Value>, Value, Exception> function) {
+    if ((m == null) || (method == null)) {
+      return null;
+    }
+    final List<StringReference> prefs = new ArrayList<>(args.length);
+
+    try {
+      final List<Value> values = new ArrayList<>(args.length);
+
+      for (final Object arg : args) {
+        if (arg instanceof String) {
+          final StringReference pref = protect(() -> toMirror(arg));
+
+          prefs.add(pref);
+          values.add(pref);
+        } else {
+          values.add(toMirror(arg));
+        }
+      }
+      return (T) fromMirror(function.apply(values));
+    } catch (Exception e) {
+      throw new Error(e);
+    } finally {
+      prefs.forEach(StringReference::enableCollection);
+    }
+  }
+
   private Object fromMirror(ArrayReference ref) {
-    final Class<?> type = getType(ref.referenceType().signature().substring(1));
+    final Class<?> type = getType(((ArrayType) ref.referenceType()).componentSignature());
 
     if (Value.class.equals(type)) {
       return ref;
@@ -851,8 +827,8 @@ public class ReflectionUtil {
   }
 
   /**
-   * Called repeatedly the provided supplier until garbage collection can be successfully disabled
-   * on its returned object reference.
+   * Calls repeatedly the provided supplier until garbage collection can be successfully disabled on
+   * its returned object reference.
    *
    * <p><i>Note:</i> This method will attempt to retrieve a new object reference from the supplier a
    * maximum of {@link #SANE_TRY_LIMIT} times.
@@ -899,5 +875,24 @@ public class ReflectionUtil {
      * @throws E if unable to provide the result
      */
     T get() throws E;
+  }
+
+  /**
+   * Functional interface for suppliers for the {@link #protect} method.
+   *
+   * @param <E> the exception that can be thrown out of the function
+   * @param <T> the type of the input to the function
+   * @param <R> the type of the result of the function
+   */
+  @FunctionalInterface
+  private interface ThrowingFunction<T, R, E extends Exception> {
+    /**
+     * Applies this function to the given argument.
+     *
+     * @param t the function argument
+     * @return the function result
+     * @throws E if unable to invoke the function
+     */
+    R apply(T t) throws E;
   }
 }

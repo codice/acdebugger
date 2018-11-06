@@ -34,7 +34,7 @@ import org.codice.acdebugger.impl.BreakpointLocation;
  * Old version of a breakpoint processor that was attempting to intercept all calls to {@link
  * java.security.ProtectionDomain#implies(Permission)}.
  */
-public class ImpliesBreakpointProcessor implements BreakpointProcessor {
+public class ImpliesProcessor implements BreakpointProcessor {
   private static final Set<BreakpointLocation> LOCATIONS =
       ImmutableSet.of(
           BreakpointProcessor.createLocationFor("Ljava/security/ProtectionDomain;", 290),
@@ -47,7 +47,7 @@ public class ImpliesBreakpointProcessor implements BreakpointProcessor {
   private static final Set<String> NESTED_LOCATIONS =
       Stream.concat(
               Stream.of("Ljava/security/AccessControlContext;"),
-              ImpliesBreakpointProcessor.LOCATIONS
+              ImpliesProcessor.LOCATIONS
                   .stream()
                   .map(BreakpointLocation::getClassSignature)
                   .map(Object::toString))
@@ -56,13 +56,13 @@ public class ImpliesBreakpointProcessor implements BreakpointProcessor {
 
   @Override
   public final Stream<BreakpointLocation> locations() {
-    return ImpliesBreakpointProcessor.LOCATIONS.stream();
+    return ImpliesProcessor.LOCATIONS.stream();
   }
 
   private boolean isNested(String location) {
     /*|| caller.startsWith("org.eclipse.osgi.internal.permadmin.BundlePermissions:")*/
     // do nothing when it is called from these locations
-    return ImpliesBreakpointProcessor.NESTED_LOCATIONS.stream().anyMatch(location::startsWith);
+    return ImpliesProcessor.NESTED_LOCATIONS.stream().anyMatch(location::startsWith);
   }
 
   @Override

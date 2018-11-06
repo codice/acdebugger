@@ -15,15 +15,11 @@ package org.codice.acdebugger.breakpoints;
 
 // NOSONAR - squid:S1191 - Using the Java debugger API
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Charsets;
-import com.google.common.collect.Ordering;
 import com.google.common.io.LineProcessor;
 import com.google.common.io.Resources;
-import com.sun.jdi.ArrayReference; // NOSONAR
-import com.sun.jdi.Location; // NOSONAR
 import com.sun.jdi.ObjectReference; // NOSONAR
-import com.sun.jdi.StackFrame; // NOSONAR
-import com.sun.jdi.Value; // NOSONAR
 import java.io.IOError;
 import java.io.IOException;
 import java.security.Permission;
@@ -49,14 +45,14 @@ import org.codice.acdebugger.api.StackFrameInformation;
  * security failure.
  */
 class SecurityCheckInformation extends SecuritySolution implements SecurityFailure {
+  private static final String DOUBLE_LINES =
+      "=======================================================================";
+
   /**
    * List of patterns to match security check information that should be considered acceptable
    * failures and skipped.
    */
   private static final List<Pattern> ACCEPTABLE_PATTERNS;
-
-  private static final String DOUBLE_LINES =
-      "=======================================================================";
 
   static {
     try {
@@ -70,60 +66,42 @@ class SecurityCheckInformation extends SecuritySolution implements SecurityFailu
     }
   }
 
-  /**
-   * context array from AccessControlContext at line 472 converted to domain location/bundle names
-   */
-  private final List<String> context;
+  /** The associated debug session. */
+  private final Debug debug;
+
+  /** The context information retrieved from the AccessControlContext class at line 472. */
+  private final AccessControlContextInfo context;
 
   /**
-   * the current loop index through the domain context in the code where the breakpoint occurred or
-   * <code>-1</code> if this is a solution in which case that index no longer matter since we are
-   * faking what would happen if we granted permissions and/or extending privileges
+   * list of protection domains (i.e. bundle name/domain location) in the security context as
+   * recomputed here. This list will not contain nulls or duplicates.
    */
-  @SuppressWarnings("squid:S00116" /* name is clearer that way */)
-  private final int local_i;
-
-  /** domain where the exception is about to be generated for */
-  private final Value currentDomainValue;
-
-  /** domain location/bundle name where the exception is about to be generated for */
-  private final String currentDomain;
-
-  /** list of protection domains (i.e. bundle name/domain location) in the security stack */
   private final List<String> domains;
 
-  /* list of protection domains (i.e. bundle name/domain location) that are granted the failed permissions */
-  private final Set<String> privilegedDomains;
-
   /**
-   * index in the domains list where the security manager found the first domain that doesn't have
-   * the failed permissions
-   */
-  private int failedDomainIndex = -1;
-
-  /**
-   * index in the domains list where the security manager started combining additional domains.
-   * Below this mark are pure domains extracted from the current stack). At this mark and above are
-   * domains that were combined. Will be <code>-1</code> if no combined domains exist.
-   */
-  private int combinedDomainsStartIndex = -1;
-
-  /** the failed permission object */
-  private final ObjectReference permission;
-
-  /** the full stack trace at the point the security exception is about to be thrown */
-  private final List<StackFrameInformation> stack;
-
-  /**
-   * the index in the stack for the code that doesn't have the failed permission, -1 if no failures
+   * the index in the stack for the frame that doesn't have the failed permission, -1 if no failures
    */
   private int failedStackIndex = -1;
 
   /**
-   * the stack index of that last place a domain extended its privileges or -1 if none everything
-   * between 0 til this index is of interest for the security manager
+   * the stack index of the last place (i.e. lowest index) a domain extended its privileges or -1 if
+   * none found. Everything between 0 til this index is of interest for the security manager
    */
   private int privilegedStackIndex = -1;
+
+  /**
+   * index in the domains list where we recomputed the reported security exception to be generated
+   * for or <code>-1</code> if no failures.
+   */
+  private int failedDomainIndex = -1;
+
+  /**
+   * index in the domains list where we estimate the security manager started combining additional
+   * domains not coming from the stack. Below this mark are pure domains extracted from the current
+   * stack. At this mark and above are domains that were combined. Will be <code>-1</code> if no
+   * combined domains were added.
+   */
+  private int combinedDomainsStartIndex = -1;
 
   private final boolean invalid;
 
@@ -133,103 +111,33 @@ class SecurityCheckInformation extends SecuritySolution implements SecurityFailu
   @Nullable private List<SecuritySolution> analysis = null;
 
   /**
-   * Creates a security check failure.
+   * Creates a security check failure from a given access control context.
    *
    * @param debug the current debug session
-   * @param context the context of permission domain at the point of imminent failure
-   * @param local_i the current loop index through the domain context in the code where the
-   *     breakpoint occurred
-   * @param permission the permission being checked
+   * @param context the context information to be analyzed
    * @throws Exception if unable to create a new security check failure
    */
-  @SuppressWarnings("squid:S00117" /* name is clearer that way */)
-  SecurityCheckInformation(
-      Debug debug, ArrayReference context, int local_i, ObjectReference permission)
-      throws Exception {
-    this(debug, context.getValues(), local_i, permission);
-  }
-
-  /**
-   * Creates a security check failure.
-   *
-   * @param debug the current debug session
-   * @param context the context of permission domain at the point of imminent failure
-   * @param local_i the current loop index through the domain context in the code where the
-   *     breakpoint occurred
-   * @param permission the permission being checked
-   * @throws Exception if unable to create a new security check failure
-   */
-  @SuppressWarnings({
-    "squid:S00117", /* name is clearer that way */
-    "squid:S00112" /* Forced to by the Java debugger API */
-  })
-  private SecurityCheckInformation(
-      Debug debug, List<Value> context, int local_i, ObjectReference permission) throws Exception {
+  @SuppressWarnings("squid:S00112" /* Forced to by the Java debugger API */)
+  SecurityCheckInformation(Debug debug, AccessControlContextInfo context) throws Exception {
     super(
-        debug.permissions().getPermissionStrings(permission),
+        debug.threadStack(),
+        context.getPermissions(),
         Collections.emptySet(),
         Collections.emptyList());
-    this.context = new ArrayList<>(context.size());
-    this.local_i = local_i;
-    this.currentDomainValue = context.get(local_i);
-    this.currentDomain = debug.locations().get(currentDomainValue);
-    this.domains = new ArrayList<>(context.size());
-    this.permission = permission;
-    this.privilegedDomains = new HashSet<>(context.size() * 3 / 2);
-    for (int i = 0; i < context.size(); i++) {
-      final Value domainValue = context.get(i);
-      final String domain =
-          (domainValue == currentDomainValue) ? currentDomain : debug.locations().get(domainValue);
-
-      this.context.add(domain);
-      if (i == local_i) {
-        // we know we don't have privileges since we failed here so continue but only after
-        // having added the current domain to the context list
-        continue;
-      } else if (i < local_i) { // we know we have privileges since we failed after `i`
-        debug.permissions().grant(domain, permissionInfos);
-        privilegedDomains.add(domain);
-      } else if (domainValue instanceof ObjectReference) {
-        if (debug.permissions().implies(domain, permissionInfos)) { // check cache
-          privilegedDomains.add(domain);
-        } else if (debug
-            .permissions()
-            .implies((ObjectReference) domainValue, permission)) { // check attached VM
-          debug.permissions().grant(domain, permissionInfos);
-          privilegedDomains.add(domain);
-        }
-      }
-    }
-    this.stack = new ArrayList<>(debug.thread().frameCount());
-    // don't cache the set of stack as it will change every time we invoke()
-    // something using the thread
-    for (int i = 0; i < debug.thread().frameCount(); i++) {
-      final StackFrame frame = debug.thread().frame(i);
-      final Location location = frame.location(); // cache before we invoke anything on the thread
-      final ObjectReference thisObject = frame.thisObject();
-      final String domain = debug.locations().get(frame);
-      final StackFrameInformation currentFrame =
-          new StackFrameInformation(domain, location, thisObject);
-
-      stack.add(currentFrame);
-    }
-    if (currentDomain == null) {
+    this.debug = debug;
+    this.context = context;
+    this.domains = new ArrayList<>(context.getDomains().size());
+    if (context.getCurrentDomain() == null) {
       // since bundle-0/boot domain always has all permissions, we cannot received null as the
       // current domain where the failure occurred
       dumpTroubleshootingInfo(
-          debug, "AN ERROR OCCURRED WHILE ATTEMPTING TO FIND THE LOCATION FOR A DOMAIN");
-      throw new Error("unable to find location for domain: " + currentDomainValue.type().name());
+          "AN ERROR OCCURRED WHILE ATTEMPTING TO FIND THE LOCATION FOR A DOMAIN");
+      throw new Error(
+          "unable to find location for domain: "
+              + context.getCurrentDomainReference().type().name());
     }
     this.invalid = !recompute();
-    if (!domains.contains(currentDomain)) {
-      // it would seem we are unable to find the domain where we failed after recomputing
-      dumpTroubleshootingInfo(
-          debug,
-          "AN ERROR OCCURRED WHILE ATTEMPTING ANALYZE THE SECURITY EXCEPTION, THE",
-          "DOMAIN WHERE THE FAILURE WAS REPORTED CANNOT BE FOUND FROM THE CURRENT",
-          "ACCESS CONTROL CONTEXT");
-    }
-    analyze0(debug);
+    analyze0();
   }
 
   /**
@@ -240,21 +148,15 @@ class SecurityCheckInformation extends SecuritySolution implements SecurityFailu
    */
   private SecurityCheckInformation(SecurityCheckInformation failure) {
     super(failure);
-    this.context = failure.context;
-    this.local_i = -1;
+    this.debug = failure.debug;
+    // add the failed domain from the specified failure as a privileged and as a granted one
+    super.grantedDomains.add(failure.getFailedDomain());
+    this.context = failure.context.grant(failure.getFailedDomain());
     // the combined domain start index is something fixed provided to us when the error is detected
     // this won't change because we are simply granting permissions to domains as this wouldn't
     // change the stack or the access control context as seen originally
     this.combinedDomainsStartIndex = failure.combinedDomainsStartIndex;
-    this.currentDomainValue = failure.currentDomainValue;
-    this.currentDomain = failure.currentDomain;
     this.domains = new ArrayList<>(failure.domains.size());
-    this.privilegedDomains = new HashSet<>(failure.privilegedDomains);
-    this.permission = failure.permission;
-    this.stack = failure.stack;
-    // add the failed domain from the specified failure as a privileged one
-    privilegedDomains.add(failure.getFailedDomain());
-    grantedDomains.add(failure.getFailedDomain());
     this.invalid = !recompute();
   }
 
@@ -266,7 +168,8 @@ class SecurityCheckInformation extends SecuritySolution implements SecurityFailu
    * @param index the index in the stack where to extend privileges
    */
   private SecurityCheckInformation(SecurityCheckInformation failure, int index) {
-    super(failure);
+    super(failure, index);
+    this.debug = failure.debug;
     // because we are extending privileges which would be before any combined domains gets added to
     // the access control context, we can safely account for the fact that these combined domains
     // won't be present anymore in the new and revised access control context, as such we should
@@ -275,28 +178,7 @@ class SecurityCheckInformation extends SecuritySolution implements SecurityFailu
     // domains provided by the original access control context
     this.context = failure.context;
     this.combinedDomainsStartIndex = -1;
-    this.local_i = -1;
-    this.currentDomainValue = failure.currentDomainValue;
-    this.currentDomain = failure.currentDomain;
     this.domains = new ArrayList<>(failure.domains.size());
-    this.privilegedDomains = failure.privilegedDomains;
-    this.permission = failure.permission;
-    this.stack = new ArrayList<>();
-    final Set<String> newStackDomainsUpToDoPrivileged = new HashSet<>();
-
-    // extend the stack by adding a fake doPrivileged() at the specified index and duplicating that
-    // frame after it to show that it is still in the stack after the call to doPrivileged()
-    for (int i = 0; i <= index; i++) {
-      final StackFrameInformation frame = failure.stack.get(i);
-
-      stack.add(frame);
-      newStackDomainsUpToDoPrivileged.add(frame.getDomain());
-    }
-    stack.add(StackFrameInformation.DO_PRIVILEGED);
-    doPrivileged.add(failure.stack.get(index));
-    for (int i = index; i < failure.stack.size(); i++) {
-      stack.add(failure.stack.get(i));
-    }
     this.invalid = !recompute();
   }
 
@@ -312,16 +194,6 @@ class SecurityCheckInformation extends SecuritySolution implements SecurityFailu
   }
 
   @Override
-  public Set<String> getPermissions() {
-    return Collections.unmodifiableSet(permissionInfos);
-  }
-
-  @Override
-  public List<StackFrameInformation> getStack() {
-    return Collections.unmodifiableList(stack);
-  }
-
-  @Override
   public boolean isAcceptable() {
     return acceptablePattern != null;
   }
@@ -330,16 +202,6 @@ class SecurityCheckInformation extends SecuritySolution implements SecurityFailu
   @Nullable
   public String getAcceptablePermissions() {
     return isAcceptable() ? "REGEX: " + acceptablePattern.getPermissionInfos() : null;
-  }
-
-  @Override
-  public Set<String> getGrantedDomains() {
-    return Collections.unmodifiableSet(grantedDomains);
-  }
-
-  @Override
-  public List<StackFrameInformation> getDoPrivilegedLocations() {
-    return Collections.unmodifiableList(doPrivileged);
   }
 
   @Override
@@ -361,26 +223,29 @@ class SecurityCheckInformation extends SecuritySolution implements SecurityFailu
                 .mapToObj(i -> "=")
                 .collect(Collectors.joining("")));
     dump0(osgi);
-    if (!isAcceptable()) {
-      for (int i = 0; i < analysis.size(); i++) {
-        final SecuritySolution info = analysis.get(i);
+    for (int i = 0; i < analysis.size(); i++) {
+      final SecuritySolution info = analysis.get(i);
 
-        System.out.println(ACDebugger.PREFIX);
-        System.out.println(ACDebugger.PREFIX + "OPTION " + (i + 1));
-        System.out.println(ACDebugger.PREFIX + "--------");
-        ((SecurityCheckInformation) info).dump0(osgi);
-      }
-      if (!analysis.isEmpty()) {
-        System.out.println(ACDebugger.PREFIX);
-        System.out.println(ACDebugger.PREFIX + "SOLUTIONS");
-        System.out.println(ACDebugger.PREFIX + "---------");
-        analysis.forEach(s -> s.print(osgi));
-      }
+      System.out.println(ACDebugger.PREFIX);
+      System.out.println(ACDebugger.PREFIX + "OPTION " + (i + 1));
+      System.out.println(ACDebugger.PREFIX + "--------");
+      ((SecurityCheckInformation) info).dump0(osgi);
+    }
+    if (!analysis.isEmpty()) {
+      System.out.println(ACDebugger.PREFIX);
+      System.out.println(ACDebugger.PREFIX + "SOLUTIONS");
+      System.out.println(ACDebugger.PREFIX + "---------");
+      analysis.forEach(s -> s.print(osgi));
     }
   }
 
   @Override
   public String toString() {
+    if (!grantedDomains.isEmpty() || !doPrivileged.isEmpty()) { // we have a solution
+      return super.toString();
+    }
+    final String currentDomain = context.getCurrentDomain();
+
     if (currentDomain == null) {
       return "";
     }
@@ -398,6 +263,76 @@ class SecurityCheckInformation extends SecuritySolution implements SecurityFailu
       }
       return "Check permissions failure for " + currentDomain + ": " + permissionInfos;
     }
+  }
+
+  /**
+   * Gets the associated access control context information.
+   *
+   * @return the associated access control context information
+   */
+  @VisibleForTesting
+  AccessControlContextInfo getContext() {
+    return context;
+  }
+
+  /**
+   * Gets the index in the stack for the frame that doesn't have the failed permission.
+   *
+   * @return the index in the stack for the frame that doesn't have the failed permission, <code>-1
+   *     </code> if no failures
+   */
+  @VisibleForTesting
+  int getFailedStackIndex() {
+    return failedStackIndex;
+  }
+
+  /**
+   * Gets the index in the stack of the last place (i.e. lowest index) a domain extended its
+   * privileges. Everything between 0 til this index is of interest for the security manager. Frames
+   * deemed to do that on behalf of their caller are ignored.
+   *
+   * @return the stack index of the last place a domain extended its privileges or <code>-1</code>
+   *     if none found
+   */
+  @VisibleForTesting
+  int getPrivilegedStackIndex() {
+    return privilegedStackIndex;
+  }
+
+  /**
+   * Gets the protection domains (i.e. bundle name/domain location) in the security context as
+   * recomputed here.
+   *
+   * @return the list of protection domains (i.e. bundle name/domain location) in the security
+   *     context as recomputed here
+   */
+  @VisibleForTesting
+  List<String> getComputedDomains() {
+    return domains;
+  }
+
+  /**
+   * Gets the index in the recomputed domains list where the reported security exception is to be
+   * generated for.
+   *
+   * @return the index for the failed domain or <code>-1</code> if no failures exist
+   */
+  @VisibleForTesting
+  int getFailedDomainIndex() {
+    return failedDomainIndex;
+  }
+
+  /**
+   * Gets the index in the recomputed domains list where we estimate the security manager started
+   * combining additional domains not coming from the stack. Below this mark are pure domains
+   * extracted from the current stack). At this mark and above are domains that were combined.
+   *
+   * @return the starting index for combined domains or <code>-1</code> if no combined domains were
+   *     present
+   */
+  @VisibleForTesting
+  int getCombinedDomainsStartIndex() {
+    return combinedDomainsStartIndex;
   }
 
   /**
@@ -428,8 +363,10 @@ class SecurityCheckInformation extends SecuritySolution implements SecurityFailu
   @SuppressWarnings("squid:CommentedOutCodeLine" /* no commented out code here */)
   private boolean recompute() {
     domains.clear();
-    this.privilegedStackIndex = -1;
     this.failedStackIndex = -1;
+    this.privilegedStackIndex = -1;
+    this.failedDomainIndex = -1;
+    this.combinedDomainsStartIndex = -1;
     final Set<String> grantedDomains = new HashSet<>(this.grantedDomains);
     final boolean foundFailedDomain = recomputeFromStack(grantedDomains);
 
@@ -440,33 +377,79 @@ class SecurityCheckInformation extends SecuritySolution implements SecurityFailu
       // If we have more than we need to remember as there will be no stack lines that will
       // correspond to these domains
       recomputeFromContext(grantedDomains, foundFailedDomain);
-    } else {
-      // if we are extending privileges then we are modifying the stack and the access control
-      // context that would now result from the same exception we are trying to recompute.
-      // because we are extending the stack before any places where we were combining domains there
-      // is no way combined domains would leak into this solution
-      // we are guaranteed that we are doing this before because:
-      // 1- we cannot analyze stack from combined domains as those are not from a stack execution;
-      //    hence we cannot propose to extend privileges there
-      // 2- to combined domains, one must extend privileges via the AccessController which means
-      //    this would already be the last line in the stack we computed before and as such, the
-      //    privileged block we are proposing would be before that particular line any way
-      this.combinedDomainsStartIndex = -1; // just make sure even though the ctor would have done it
-    }
+    } // else
+    //     if we are extending privileges for a solution then we are modifying the stack and the
+    //     access control context that would now result from the same exception we are trying to
+    //     recompute. because we are extending the stack before any places where we were combining
+    //     domains there is no way combined domains would leak into this solution
+    //     we are guaranteed that we are doing this before because:
+    //     1- we cannot analyze stack from combined domains as those are not from a stack execution;
+    //        hence we cannot propose to extend privileges there
+    //     2- to combined domains, one must extend privileges via the AccessController which means
+    //        this would already be the last line in the stack we computed before and as such, the
+    //        privileged block we are proposing would be before that particular line any way
     return grantedDomains.isEmpty();
   }
 
-  private void recomputeFromContext(Set<String> grantedDomains, boolean foundFailedDomain) {
-    for (int i = 0; i < context.size(); i++) {
-      final String domain = context.get(i);
+  private int findNextToFindNotAlreadyFound(int lastNextToFind, List<String> contextDomains) {
+    // increase 'nextToFind' to find the next one we didn't already find
+    final int size = contextDomains.size();
+    int nextToFind = lastNextToFind;
 
-      if ((domain != null) && !domains.contains(domain)) {
+    while (++nextToFind < size) {
+      if (contextDomains.indexOf(contextDomains.get(nextToFind)) > lastNextToFind) {
+        break;
+      }
+    }
+    return nextToFind;
+  }
+
+  private int getNextContextDomainIndexNotComputedFromStack(List<String> contextDomains) {
+    // at this point, all domains we have in 'domains' are computed from the stack and should
+    // correspond to the same in order we have in the context
+    // 'context.domains' have duplicates and possibly null at the top (and elsewhere) whereas
+    // 'domains' doesn't have nulls and doesn't have duplicates
+    final int size = contextDomains.size();
+    // skip null at the top since those are not added to 'domains'
+    int nextToFind = (contextDomains.get(0) == null) ? 1 : 0;
+
+    for (final String domain : domains) {
+      // the computed domain should be found at or before 'next' otherwise, we just computed a
+      // domain from a frame that doesn't match a domain we got from the access control context
+      final int index = contextDomains.indexOf(domain);
+
+      if (index < nextToFind) { // we already found that domain so continue
+      } else if (index == nextToFind) { // we found the next domain we were looking for
+        nextToFind = findNextToFindNotAlreadyFound(nextToFind, contextDomains);
+      } else {
+        // this means that we computed a domain from the stack that we cannot find in the
+        // access control context. this is a bug and we need to figure out what we missed
+        dumpTroubleshootingInfo(
+            "AN ERROR OCCURRED WHILE ATTEMPTING TO ANALYZE THE SECURITY EXCEPTION,",
+            "A DOMAIN WE COMPUTED FROM THE STACK CANNOT BE FOUND IN THE CURRENT",
+            "ACCESS CONTROL CONTEXT (" + domain + ')');
+        throw new InternalError(
+            "unable to find a domain computed from the stack in the access control context: "
+                + domain);
+      }
+    }
+    return (nextToFind < size) ? nextToFind : -1;
+  }
+
+  private void recomputeFromContext(Set<String> grantedDomains, boolean foundFailedDomain) {
+    final List<String> contextDomains = context.getDomains();
+    final int nextToFind = getNextContextDomainIndexNotComputedFromStack(contextDomains);
+
+    if (nextToFind != -1) {
+      // at this point, all domains starting at 'nextToFind' in the context are deemed combined and
+      // should be considered part of the context
+      this.combinedDomainsStartIndex = domains.size();
+      for (int i = nextToFind; i < contextDomains.size(); i++) {
+        final String domain = contextDomains.get(i);
+
         domains.add(domain);
-        if (combinedDomainsStartIndex == -1) {
-          this.combinedDomainsStartIndex = domains.size() - 1;
-        }
         if (!foundFailedDomain) {
-          if (!privilegedDomains.contains(domain)) { // found the place it will fail!!!!
+          if (!context.isPrivileged(domain)) { // found the place it will faill!!!!
             foundFailedDomain = true;
             this.failedDomainIndex = domains.size() - 1;
           } else {
@@ -479,18 +462,42 @@ class SecurityCheckInformation extends SecuritySolution implements SecurityFailu
     }
   }
 
-  private void updatePrivilegedStackIndex(int i) {
-    this.privilegedStackIndex = i + 1;
-    // special case to handle situations like javax.security.auth.Subject:422
-    // which ends up doing a doPrivileged() on behalf of the caller
-    while (true) {
-      final StackFrameInformation nextFrame = stack.get(privilegedStackIndex);
+  private void recomputeAcceptablePattern(
+      List<Pattern> stackPatterns, StackFrameInformation frame, int index) {
+    if (!isAcceptable()) {
+      final String location = frame.getLocation();
 
-      if (!nextFrame.isCallingDoPrivilegedBlockOnBehalfOfCaller()) {
-        break;
-      }
-      this.privilegedStackIndex++;
+      this.acceptablePattern =
+          stackPatterns
+              .stream()
+              .filter(p -> p.matchLocations(index, location))
+              .filter(Pattern::wasAllMatched)
+              .findFirst()
+              .orElse(null);
     }
+  }
+
+  @SuppressWarnings("squid:S1066" /* keeping ifs separate actually increase readability here */)
+  private int reduceLastFrameToCheckIfDoPrivilegedBlock(
+      final StackFrameInformation frame, int index, int last) {
+    if (frame.isDoPrivilegedBlock()) {
+      // we check if the frame following the call to doPrivileged() is calling it on behalf of its
+      // own caller. this is a special case to handle situations like
+      // javax.security.auth.Subject:422
+      // the advantage is that we will not report the domains that follows in the stack as
+      // combined domains and we will be able to analyze them for doPrivileged() solutions
+      // note: there cannot be a call to doPrivileged() without another frame following that
+      // as such, doing a blind (i+1) is safe and will never exceed stack.size()
+      if (!stack.get(index + 1).isCallingDoPrivilegedBlockOnBehalfOfCaller()) {
+        // found a stack break that we care about, we have to stop after including the next frame
+        // as part of the stack since it is the one calling doPrivileged()
+        if (privilegedStackIndex == -1) {
+          this.privilegedStackIndex = index + 1;
+        }
+        return index + 2; // stop after next
+      } // else - falls-though as if no doPrivileged() call was found
+    }
+    return last;
   }
 
   private boolean recomputeFromStack(Set<String> grantedDomains) {
@@ -501,34 +508,21 @@ class SecurityCheckInformation extends SecuritySolution implements SecurityFailu
             .map(Pattern::new)
             .collect(Collectors.toList());
     boolean foundFailedDomain = false;
+    int last = stack.size();
 
-    for (int i = 0; i < stack.size(); i++) {
+    for (int i = 0; i < last; i++) {
       final StackFrameInformation frame = stack.get(i);
 
-      if (frame.isDoPrivilegedBlock()) { // stop here
-        updatePrivilegedStackIndex(i);
-        break;
-      }
-      final String location = frame.getLocation();
-
-      if (!isAcceptable()) {
-        final int index = i;
-
-        this.acceptablePattern =
-            stackPatterns
-                .stream()
-                .filter(p -> p.matchLocations(index, location))
-                .filter(Pattern::wasAllMatched)
-                .findFirst()
-                .orElse(null);
-      }
+      last = reduceLastFrameToCheckIfDoPrivilegedBlock(frame, i, last);
+      recomputeAcceptablePattern(stackPatterns, frame, i);
       final String domain = frame.getDomain();
 
       if ((domain != null) && !domains.contains(domain)) {
         domains.add(domain);
       }
       if (!foundFailedDomain) {
-        if (!frame.isPrivileged(privilegedDomains)) { // found the place where it will fail!!!!
+        if (!frame.isPrivileged(
+            context.getPrivilegedDomains())) { // found the place where it failed!
           foundFailedDomain = true;
           this.failedStackIndex = i;
           this.failedDomainIndex = domains.indexOf(domain);
@@ -542,34 +536,40 @@ class SecurityCheckInformation extends SecuritySolution implements SecurityFailu
     return foundFailedDomain;
   }
 
-  private List<SecuritySolution> analyze0(Debug debug) {
-    if (analysis == null) {
+  private List<SecuritySolution> analyze0() {
+    List<SecuritySolution> solutions = analysis;
+
+    if (solutions == null) {
       if (invalid) { // if this is not a valid solution then the analysis should be empty
-        this.analysis = Collections.emptyList();
+        solutions = Collections.emptyList();
+        this.analysis = solutions;
       } else if (((failedStackIndex == -1) && (failedDomainIndex == -1)) || isAcceptable()) {
         // no issues here (i.e. good solution) or acceptable security exception so return self
-        this.analysis = Collections.singletonList(this);
+        solutions = Collections.singletonList(this);
+        this.analysis = Collections.emptyList();
       } else {
-        this.analysis = new ArrayList<>();
+        solutions = new ArrayList<>();
         // first see what happens if we grant the missing permission to the failed domain
-        analysis.addAll(new SecurityCheckInformation(this).analyze0(debug));
+        solutions.addAll(new SecurityCheckInformation(this).analyze0());
         if (debug.canDoPrivilegedBlocks()) {
-          analyzeDoPrivilegedBlocks(debug);
+          analyzeDoPrivilegedBlocks(solutions);
         }
-        this.analysis = Ordering.natural().sortedCopy(analysis); // sort the result
+        Collections.sort(solutions); // sort the result
+        this.analysis = solutions;
       }
     }
-    return analysis;
+    return solutions;
   }
 
-  private void analyzeDoPrivilegedBlocks(Debug debug) {
+  private void analyzeDoPrivilegedBlocks(List<SecuritySolution> solutions) {
     // now check if we could extend the privileges of a domain that comes up
     // before which already has the permission
     for (int i = failedStackIndex - 1; i >= 0; i--) {
       final StackFrameInformation frame = stack.get(i);
 
-      if (frame.isPrivileged(privilegedDomains) && frame.canDoPrivilegedBlocks(debug)) {
-        analysis.addAll(new SecurityCheckInformation(this, i).analyze0(debug));
+      if (frame.isPrivileged(context.getPrivilegedDomains())
+          && frame.canDoPrivilegedBlocks(debug)) {
+        solutions.addAll(new SecurityCheckInformation(this, i).analyze0());
       }
     }
   }
@@ -623,7 +623,7 @@ class SecurityCheckInformation extends SecuritySolution implements SecurityFailu
           ACDebugger.PREFIX
               + " "
               + ((i == failedDomainIndex) ? "--> " : "    ")
-              + (privilegedDomains.contains(domain) ? "" : "*")
+              + (context.isPrivileged(domain) ? "" : "*")
               + domain
               + (((i >= combinedDomainsStartIndex) && (combinedDomainsStartIndex != -1))
                   ? " (combined)"
@@ -634,14 +634,16 @@ class SecurityCheckInformation extends SecuritySolution implements SecurityFailu
   @SuppressWarnings("squid:S106" /* this is a console application */)
   private void dumpStack(boolean osgi) {
     System.out.println(ACDebugger.PREFIX + "Stack:");
-    for (int i = 0; i < stack.size(); i++) {
+    final int size = stack.size();
+
+    for (int i = 0; i < size; i++) {
       System.out.println(
           ACDebugger.PREFIX
               + " "
               + ((i == failedStackIndex) ? "-->" : "   ")
               + " at "
               + (isAcceptable() && acceptablePattern.wasMatched(i) ? "#" : "")
-              + stack.get(i).toString(osgi, privilegedDomains));
+              + stack.get(i).toString(osgi, context.getPrivilegedDomains()));
       if ((privilegedStackIndex != -1) && (i == privilegedStackIndex)) {
         System.out.println(
             ACDebugger.PREFIX + "    ----------------------------------------------------------");
@@ -657,7 +659,9 @@ class SecurityCheckInformation extends SecuritySolution implements SecurityFailu
   }
 
   @SuppressWarnings("squid:S106" /* this is a console application */)
-  private void dumpTroubleshootingInfo(Debug debug, String... msg) {
+  private void dumpTroubleshootingInfo(String... msg) {
+    final ObjectReference currentDomainValue = context.getCurrentDomainReference();
+
     System.err.println(ACDebugger.PREFIX);
     System.err.println(ACDebugger.PREFIX + SecurityCheckInformation.DOUBLE_LINES);
     Stream.of(msg).map(ACDebugger.PREFIX::concat).forEach(System.err::println);
@@ -669,9 +673,10 @@ class SecurityCheckInformation extends SecuritySolution implements SecurityFailu
     System.err.println(
         ACDebugger.PREFIX + "CURRENT DOMAIN CLASS: " + currentDomainValue.type().name());
     System.err.println(ACDebugger.PREFIX + "CURRENT DOMAIN: " + currentDomainValue);
-    System.err.println(ACDebugger.PREFIX + "LOCAL 'i' VARIABLE: " + local_i);
+    System.err.println(
+        ACDebugger.PREFIX + "LOCAL 'i' VARIABLE: " + context.getCurrentDomainIndex());
     System.err.println(ACDebugger.PREFIX + "ACCESS CONTROL CONTEXT:");
-    context.forEach(b -> System.err.println(ACDebugger.PREFIX + "  " + b));
+    context.getDomains().forEach(b -> System.err.println(ACDebugger.PREFIX + "  " + b));
     System.err.println(ACDebugger.PREFIX + "CONTEXT:");
     System.err.println(
         ACDebugger.PREFIX
@@ -687,7 +692,9 @@ class SecurityCheckInformation extends SecuritySolution implements SecurityFailu
                   : ""));
     }
     System.err.println(ACDebugger.PREFIX + "STACK:");
-    for (int i = 0; i < stack.size(); i++) {
+    final int size = stack.size();
+
+    for (int i = 0; i < size; i++) {
       System.err.println(ACDebugger.PREFIX + "  at " + stack.get(i));
       if ((privilegedStackIndex != -1) && (i == privilegedStackIndex)) {
         System.err.println(

@@ -16,6 +16,7 @@ package org.codice.acdebugger.common;
 import java.security.Permission;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.Objects;
 import java.util.Set;
 import javax.annotation.Nullable;
 
@@ -26,13 +27,13 @@ public class ServicePermissionInfo {
    * for.
    */
   @Nullable // only because Gson may set it to null
-  private Set<String> permissionStrings;
+  private final Set<String> permissionStrings;
 
   /**
    * The {@link java.security.ProtectionDomain#implies(Permission)} result from the requested domain
    * and service permission.
    */
-  private boolean implies;
+  private final boolean implies;
 
   /**
    * A set of permission strings corresponding to the given permission which were individually
@@ -40,7 +41,7 @@ public class ServicePermissionInfo {
    * true</code>.
    */
   @Nullable // only because Gson may set it to null
-  private Set<String> implied;
+  private final Set<String> implied;
 
   public ServicePermissionInfo() {
     this.permissionStrings = new HashSet<>(4);
@@ -65,5 +66,36 @@ public class ServicePermissionInfo {
 
   public Set<String> getImpliedPermissionStrings() {
     return (implied != null) ? implied : Collections.emptySet();
+  }
+
+  @Override
+  public int hashCode() {
+    return Objects.hash(permissionStrings, implies, implied);
+  }
+
+  @Override
+  public boolean equals(Object obj) {
+    if (obj == this) {
+      return true;
+    }
+    if (obj instanceof ServicePermissionInfo) {
+      final ServicePermissionInfo i = (ServicePermissionInfo) obj;
+
+      return (implies == i.implies)
+          && Objects.equals(permissionStrings, i.permissionStrings)
+          && Objects.equals(implied, i.implied);
+    }
+    return false;
+  }
+
+  @Override
+  public String toString() {
+    return "ServicePermissionInfo[permissionStrings="
+        + permissionStrings
+        + ", implies="
+        + implies
+        + ", implied="
+        + implied
+        + ']';
   }
 }

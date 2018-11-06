@@ -32,8 +32,7 @@ public class PermissionUtil {
   /** Internal key where information about service properties is cached. */
   private static final String SERVICE_PROPERTY_CACHE = "debug.service.property.cache";
 
-  private static final String SERVICE_PERMISSION_FORMAT =
-      "org.osgi.framework.ServicePermission \"%s\", \"%s\"";
+  private static final String SERVICE_PERMISSION_CLASS = "org.osgi.framework.ServicePermission";
 
   private static final String GET = "get";
 
@@ -107,6 +106,8 @@ public class PermissionUtil {
       return debug
           .reflection()
           .invoke(domain, "implies", "(Ljava/security/Permission;)Z", permission);
+    } catch (VirtualMachineError e) {
+      throw e;
     } catch (Error e) { // since we cannot tell, we shall assume the worst
       // that sometimes happen if some classes have not yet been loaded by JVM
       return false;
@@ -145,7 +146,7 @@ public class PermissionUtil {
    * @return <code>true</code> if the permissions were granted to the specified domain; <code>false
    *     </code> if at least one was already granted
    */
-  public boolean grant(String domain, Set<String> permissions) {
+  public boolean grant(@Nullable String domain, Set<String> permissions) {
     if (domain == null) {
       return false;
     }
@@ -197,11 +198,15 @@ public class PermissionUtil {
       @Nullable String[] serviceClasses, String actions) {
     if (serviceClasses == null) {
       return Collections.singleton(
-          String.format(PermissionUtil.SERVICE_PERMISSION_FORMAT, "*", actions));
+          org.codice.acdebugger.common.PermissionUtil.getPermissionString(
+              PermissionUtil.SERVICE_PERMISSION_CLASS, "*", actions));
     }
     return Stream.of(serviceClasses)
         .sorted()
-        .map(s -> String.format(PermissionUtil.SERVICE_PERMISSION_FORMAT, s, actions))
+        .map(
+            s ->
+                org.codice.acdebugger.common.PermissionUtil.getPermissionString(
+                    PermissionUtil.SERVICE_PERMISSION_CLASS, s, actions))
         .collect(Collectors.toSet());
   }
 
@@ -225,13 +230,11 @@ public class PermissionUtil {
       // ignore and continue the long way which might require more calls to the process
       t.printStackTrace();
     }
-    final ClassType obj = (ClassType) permission.referenceType();
-    final String actions =
-        debug
-            .reflection()
-            .invoke(
-                permission, "getActions", ReflectionUtil.METHOD_SIGNATURE_NO_ARGS_STRING_RESULT);
     final ReflectionUtil reflection = debug.reflection();
+    final ClassType clazz = (ClassType) permission.referenceType();
+    final String actions =
+        reflection.invoke(
+            permission, "getActions", ReflectionUtil.METHOD_SIGNATURE_NO_ARGS_STRING_RESULT);
     final boolean isFilePermission;
 
     if (reflection.isInstance("Lorg/osgi/framework/ServicePermission;", permission)) {
@@ -247,7 +250,7 @@ public class PermissionUtil {
             .map(
                 n ->
                     org.codice.acdebugger.common.PermissionUtil.getPermissionString(
-                        obj.name(), n, actions))
+                        clazz.name(), n, actions))
             .collect(Collectors.toSet());
       }
       isFilePermission = false;
@@ -262,7 +265,21 @@ public class PermissionUtil {
       name = debug.properties().compress(debug, name);
     }
     return Collections.singleton(
-        org.codice.acdebugger.common.PermissionUtil.getPermissionString(obj.name(), name, actions));
+        org.codice.acdebugger.common.PermissionUtil.getPermissionString(
+            clazz.name(), name, actions));
+  }
+
+  /**
+   * Gets a service property for a given service reference.
+   *
+   * @param <T> the type for the service property to retrieve
+   * @param serviceReference the service reference for which to retrieve a service property
+   * @param key the key for the service property to retrieve
+   * @return the corresponding service property value
+   */
+  @Nullable
+  public <T> T getServiceProperty(ObjectReference serviceReference, String key) {
+    return getServiceProperty0(debug.reflection(), serviceReference, key);
   }
 
   /**
@@ -285,15 +302,14 @@ public class PermissionUtil {
           debug
               .backdoor() // only grant in continuous mode and if granting
               .getServicePermissionInfoAndGrant(
-                  debug, bundle, domain, serviceEvent, debug.isContinuous() && debug.isGranting());
-
+                  debug, bundle, domain, serviceEvent, debug.isGranting());
       final Set<String> permissionStrings = info.getPermissionStrings();
 
-      if (debug.isContinuous()) {
+      if (debug.isContinuous() && debug.isGranting()) {
         // first make sure we cache all permissions since we granted them if they were missing
         permissionStrings.forEach(p -> debug.context().grantPermission(bundle, p));
       }
-      // next cache all info we have about pre-existed implied permissions
+      // next cache all info we have about pre-existed implied permissions which can include the "*"
       // and remove them from the complete list of permissions since they were not missing
       info.getImpliedPermissionStrings()
           .stream()
@@ -313,16 +329,9 @@ public class PermissionUtil {
     return findMissingServicePermissionStrings0(bundle, domain, serviceEvent);
   }
 
-  /**
-   * Gets a service property for a given reference.
-   *
-   * @param <T> the type for the service property to retrieve
-   * @param serviceReference the service reference for which to retrieve a service property
-   * @param key the key for the service property to retrieve
-   * @return the corresponding service property value
-   */
   @Nullable
-  private <T> T getServiceProperty(ObjectReference serviceReference, String key) {
+  private <T> T getServiceProperty0(
+      ReflectionUtil reflection, ObjectReference serviceReference, String key) {
     final Map<ObjectReference, Map<String, Object>> cache =
         debug.computeIfAbsent(PermissionUtil.SERVICE_PROPERTY_CACHE, ConcurrentHashMap::new);
     final Map<String, Object> props =
@@ -332,9 +341,8 @@ public class PermissionUtil {
       return (T) props.get(key);
     }
     final T value =
-        debug
-            .reflection()
-            .invoke(serviceReference, "getProperty", "(Ljava/lang/String;)Ljava/lang/Object;", key);
+        reflection.invoke(
+            serviceReference, "getProperty", "(Ljava/lang/String;)Ljava/lang/Object;", key);
 
     props.put(key, value);
     return value;
@@ -344,14 +352,13 @@ public class PermissionUtil {
       String bundle, ObjectReference domain, ObjectReference serviceEvent) {
     // check if we cached the permission for ALL: '*'
     if (!implies(bundle, getServicePermissionStrings(null, PermissionUtil.GET))) {
+      final ReflectionUtil reflection = debug.reflection();
       final ObjectReference serviceReference =
-          debug
-              .reflection()
-              .invoke(
-                  serviceEvent, "getServiceReference", "()Lorg/osgi/framework/ServiceReference;");
+          reflection.invoke(
+              serviceEvent, "getServiceReference", "()Lorg/osgi/framework/ServiceReference;");
       final Set<String> permissionStrings =
           getServicePermissionStrings(
-              getServiceProperty(serviceReference, "objectClass"), PermissionUtil.GET);
+              getServiceProperty0(reflection, serviceReference, "objectClass"), PermissionUtil.GET);
 
       // check if we cached the permission for the specific service
       if (!implies(bundle, permissionStrings)) {

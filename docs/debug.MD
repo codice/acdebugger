@@ -102,7 +102,6 @@ AC Debugger:      at org.apache.commons.io(org.apache.commons.io.filefilter.OrFi
 AC Debugger:      at bundle-0(java.io.File:1291) <instance of java.io.File(id=16236)>
 AC Debugger:      at org.apache.commons.io(org.apache.commons.io.FileUtils:473) <class of org.apache.commons.io.FileUtils>
 AC Debugger:      at org.apache.commons.io(org.apache.commons.io.FileUtils:524) <class of org.apache.commons.io.FileUtils>
-AC Debugger:      at platform-migration(org.codice.ddf.configuration.migration.ExportMigrationContextImpl:145) <instance of org.codice.ddf.configuration.migration.ExportMigrationContextImpl(id=16149)>
 AC Debugger:      at bundle-0(java.security.AccessController.doPrivileged(java.security.PrivilegedExceptionAction)) <class of java.security.AccessController>
 AC Debugger:      at platform-migration(org.codice.ddf.configuration.migration.ExportMigrationContextImpl:145) <instance of org.codice.ddf.configuration.migration.ExportMigrationContextImpl(id=16149)>
 AC Debugger:     ----------------------------------------------------------
@@ -359,7 +358,6 @@ AC Debugger:      at *security-filter-login(org.codice.ddf.security.filter.login
 AC Debugger:      at bundle-0(java.security.AccessController.doPrivileged(java.security.PrivilegedExceptionAction, java.security.AccessControlContext)+-1) <class of java.security.AccessController>
 AC Debugger:      at bundle-0(javax.security.auth.Subject:422) <class of javax.security.auth.Subject>
 AC Debugger:      at *security-filter-login(org.codice.ddf.security.filter.login.LoginFilter:281) <class of org.codice.ddf.security.filter.login.LoginFilter>
-AC Debugger:     ----------------------------------------------------------
 AC Debugger:      at *security-filter-login(org.codice.ddf.security.filter.login.LoginFilter$$Lambda$641.490890921.call()+16) <instance of org.codice.ddf.security.filter.login.LoginFilter$$Lambda$641.490890921(id=2168)>
 AC Debugger:      at *org.apache.shiro.core(org.apache.shiro.subject.support.SubjectCallable:90) <instance of org.apache.shiro.subject.support.SubjectCallable(id=2170)>
 AC Debugger:      at *org.apache.shiro.core(org.apache.shiro.subject.support.SubjectCallable:83) <instance of org.apache.shiro.subject.support.SubjectCallable(id=2170)>

@@ -15,9 +15,11 @@ package org.codice.acdebugger.api;
 
 // NOSONAR - squid:S1191 - Using the Java debugger API
 
+import com.google.common.annotations.VisibleForTesting;
 import com.sun.jdi.Location; // NOSONAR
 import com.sun.jdi.ObjectReference; // NOSONAR
 import com.sun.jdi.ReferenceType; // NOSONAR
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
@@ -27,7 +29,7 @@ import javax.annotation.Nullable;
 import org.codice.acdebugger.common.Resources;
 
 /** Information about a particular frame in a calling stack. */
-public class StackFrameInformation implements Comparable<StackFrameInformation> {
+public class StackFrameInformation {
   /** Constant for how to represent bundle 0 to users. */
   public static final String BUNDLE0 = "bundle-0";
 
@@ -87,7 +89,8 @@ public class StackFrameInformation implements Comparable<StackFrameInformation> 
   private final String location;
 
   /** Class at above location. */
-  @Nullable private final ReferenceType locationClass;
+  @Nullable // only when built locally here as for DO_PRIVILEGED
+  private final ReferenceType locationClass;
 
   /** Class name at above location. */
   private final String locationClassName;
@@ -101,8 +104,9 @@ public class StackFrameInformation implements Comparable<StackFrameInformation> 
   /** Class (if a static method call) or instance (if not) at the corresponding location. */
   private final String classOrInstanceAtLocation;
 
-  private StackFrameInformation(
-      String domain,
+  @VisibleForTesting
+  StackFrameInformation(
+      @Nullable String domain,
       String location,
       @Nullable ReferenceType locationClass,
       String locationClassName,
@@ -117,7 +121,7 @@ public class StackFrameInformation implements Comparable<StackFrameInformation> 
   }
 
   private StackFrameInformation(
-      String domain,
+      @Nullable String domain,
       String location,
       @Nullable ReferenceType locationClass,
       String locationClassName,
@@ -132,7 +136,7 @@ public class StackFrameInformation implements Comparable<StackFrameInformation> 
   }
 
   private StackFrameInformation(
-      String domain,
+      @Nullable String domain,
       String location,
       ReferenceType locationClass,
       @Nullable ObjectReference thisObject) {
@@ -175,6 +179,48 @@ public class StackFrameInformation implements Comparable<StackFrameInformation> 
   }
 
   /**
+   * Gets the reference to the <code>this</code> object at the location.
+   *
+   * @return the reference to the <code>this</code> object at the location or <code>null</code> if
+   *     unknown
+   */
+  @Nullable
+  public ObjectReference getThisObject() {
+    return thisObject;
+  }
+
+  /**
+   * Gets the class at the location. This either the class for the <code>this</code> object if the
+   * location represents an instance method invocation or the class in the code if this represents a
+   * static method invocation.
+   *
+   * @return the class reference at the location
+   */
+  public ReferenceType getLocationClass() {
+    return locationClass;
+  }
+
+  /**
+   * Gets the name of the class at the location. This either the class for the <code>this</code>
+   * object if the location represents an instance method invocation or the class in the code if
+   * this represents a static method invocation.
+   *
+   * @return the name of the class at the location
+   */
+  public String getLocationClassName() {
+    return locationClassName;
+  }
+
+  /**
+   * Gets a string representing either the class or the instance of the object at the location.
+   *
+   * @return a string representation of either the class or the instance at the location
+   */
+  public String getClassOrInstanceAtLocation() {
+    return classOrInstanceAtLocation;
+  }
+
+  /**
    * Checks if we can put a <code>doPrivileged()</code> block at this location in the code.
    *
    * @param debug the current debug session
@@ -203,7 +249,7 @@ public class StackFrameInformation implements Comparable<StackFrameInformation> 
    * AccessController.getContext()</code> and pass it along as is directly to a <code>
    * AccessController.doPrivileged()</code> method as opposed to getting it from somewhere else. The
    * difference is that the context being passed in is from the stack at that point and not from
-   * something unrelated and as such, we can treat it as being part of the stack dcontext of domains
+   * something unrelated and as such, we can treat it as being part of the stack context of domains
    * instead of combined domains.
    *
    * @return <code>true</code> if this location corresponds to a <code>doPrivileged()</code> block;
@@ -228,11 +274,8 @@ public class StackFrameInformation implements Comparable<StackFrameInformation> 
    *     </code>; <code>false</code> otherwise
    */
   public boolean isPrivileged(@Nullable Set<String> privilegedDomains) {
-    if (privilegedDomains == null) {
-      return true;
-    }
-    // bundle=0/boot domain always has all permissions
-    return (domain == null) || privilegedDomains.contains(domain);
+    // bundle-0/boot domain always has all permissions
+    return (domain == null) || (privilegedDomains == null) || privilegedDomains.contains(domain);
   }
 
   @Override
@@ -250,25 +293,6 @@ public class StackFrameInformation implements Comparable<StackFrameInformation> 
       return Objects.equals(domain, f.domain) && Objects.equals(location, f.location);
     }
     return false;
-  }
-
-  @Override
-  public int compareTo(StackFrameInformation f) {
-    if (f == this) {
-      return 0;
-    } else if (domain != f.domain) {
-      if (domain == null) {
-        return -1;
-      } else if (f.domain == null) {
-        return 1;
-      }
-      final int d = domain.compareTo(f.domain);
-
-      if (d != 0) {
-        return d;
-      }
-    }
-    return location.compareTo(f.location);
   }
 
   /**
@@ -298,6 +322,26 @@ public class StackFrameInformation implements Comparable<StackFrameInformation> 
   @Override
   public String toString() {
     return toString(true, null);
+  }
+
+  /**
+   * Extends the specified stack by inserting a call to <code>doPrivileged()</code> at at the
+   * specified index; thus simulating a change in the code where the original frame at that index is
+   * now calling extending its privileges while doing what it did before.
+   *
+   * @param stack the stack to be extended
+   * @param index the index corresponding to the frame to simulate a call to the <code>
+   *     doPrivileged()</code> method
+   * @return a newly created stack with the insertion of a <code>doPrivileged()</code> frame at the
+   *     specified index
+   */
+  public static List<StackFrameInformation> doPrivilegedAt(
+      List<StackFrameInformation> stack, int index) {
+    // extend the stack by inserting a fake doPrivileged() call at the specified index
+    final List<StackFrameInformation> newStack = new ArrayList<>(stack);
+
+    newStack.add(index, StackFrameInformation.DO_PRIVILEGED);
+    return newStack;
   }
 
   private boolean isThirdPartyDomain(Debug debug) {

@@ -58,6 +58,8 @@ import org.osgi.util.tracker.ServiceTracker;
 public class Backdoor implements BundleActivator {
   private static final String NOT_A_PERMISSION = "not a permission: ";
 
+  private static final String NOT_A_DOMAIN = "not a domain: ";
+
   @SuppressWarnings({
     "squid:S1068" /* DO NOT CHANGE THIS NAME, the AC debugger is accessing it directly */
   })
@@ -164,7 +166,7 @@ public class Backdoor implements BundleActivator {
   public String getDomain(Object domain) {
     try {
       if (!(domain instanceof ProtectionDomain)) {
-        throw new IllegalArgumentException("not a domain: " + domain);
+        throw new IllegalArgumentException(Backdoor.NOT_A_DOMAIN + domain);
       }
       return AccessController.doPrivileged(
           (PrivilegedAction<String>) () -> getDomainLocation((ProtectionDomain) domain));
@@ -291,7 +293,7 @@ public class Backdoor implements BundleActivator {
       String bundle, Object domain, Object serviceEvent, boolean grant) throws Exception {
     try {
       if (!(domain instanceof ProtectionDomain)) {
-        throw new IllegalArgumentException("not a domain: " + domain);
+        throw new IllegalArgumentException(Backdoor.NOT_A_DOMAIN + domain);
       }
       if (!(serviceEvent instanceof ServiceEvent)) {
         throw new IllegalArgumentException("not a service event: " + serviceEvent);
@@ -368,7 +370,7 @@ public class Backdoor implements BundleActivator {
   public boolean hasPermission(Object domain, Object permission) {
     try {
       if (!(domain instanceof ProtectionDomain)) {
-        throw new IllegalArgumentException("not a domain: " + domain);
+        throw new IllegalArgumentException(Backdoor.NOT_A_DOMAIN + domain);
       }
       if (!(permission instanceof Permission)) {
         throw new IllegalArgumentException(Backdoor.NOT_A_PERMISSION + permission);

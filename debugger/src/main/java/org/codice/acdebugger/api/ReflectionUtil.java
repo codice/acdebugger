@@ -317,7 +317,7 @@ public class ReflectionUtil {
       final Value value = obj.getValue(field);
 
       if ((value != null) && ((signature == null) || isInstance(signature, value))) {
-        return (T) fromMirror(value);
+        return fromMirror(value);
       }
     }
     return null;
@@ -364,7 +364,7 @@ public class ReflectionUtil {
       final Value value = clazz.getValue(field);
 
       if ((value != null) && ((signature == null) || isInstance(signature, value))) {
-        return (T) fromMirror(value);
+        return fromMirror(value);
       }
     }
     return null;
@@ -802,7 +802,7 @@ public class ReflectionUtil {
           values.add(toMirror(arg));
         }
       }
-      return (T) fromMirror(function.apply(values));
+      return fromMirror(function.apply(values));
     } catch (Exception e) {
       throw new Error(e);
     } finally {

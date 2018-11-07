@@ -47,7 +47,8 @@
             <id>docker</id>
             <activation>
                 <os>
-                    <family>!windows</family>
+                      <family>unix</family>
+                      <name>Linux</name>
                 </os>
             </activation>
             <build>

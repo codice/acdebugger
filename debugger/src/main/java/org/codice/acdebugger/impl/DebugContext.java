@@ -67,7 +67,7 @@ public class DebugContext {
   }
 
   /**
-   * Accesses system properties util functionnality.
+   * Accesses system properties util functionality.
    *
    * @return a system properties utility for the attached VM
    */

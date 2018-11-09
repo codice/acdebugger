@@ -449,7 +449,7 @@ class SecurityCheckInformation extends SecuritySolution implements SecurityFailu
 
         domains.add(domain);
         if (!foundFailedDomain) {
-          if (!context.isPrivileged(domain)) { // found the place it will faill!!!!
+          if (!context.isPrivileged(domain)) { // found the place it will fail!!!!
             foundFailedDomain = true;
             this.failedDomainIndex = domains.size() - 1;
           } else {

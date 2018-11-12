@@ -22,9 +22,11 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import javax.annotation.Nullable;
+import org.codice.acdebugger.ACDebugger;
 import org.codice.acdebugger.api.Debug;
 import org.codice.acdebugger.api.LocationUtil;
 import org.codice.acdebugger.api.PermissionUtil;
+import org.codice.acdebugger.api.StackFrameInformation;
 
 /** Class used to hold access control context information */
 public class AccessControlContextInfo {
@@ -34,7 +36,10 @@ public class AccessControlContextInfo {
   /** list of protection domains (i.e. bundle name/domain location) in the context */
   private final List<ObjectReference> domainReferences;
 
-  /** list of protection domains (i.e. bundle name/domain location) in the context */
+  /**
+   * list of protection domains (i.e. bundle name/domain location) in the context. It can have nulls
+   * and duplicates.
+   */
   private final List<String> domains;
 
   /**
@@ -77,6 +82,7 @@ public class AccessControlContextInfo {
     this.domainReferences = domainReferences;
     this.domains = new ArrayList<>(domainReferences.size());
     this.privilegedDomains = new HashSet<>(domainReferences.size() * 3 / 2);
+    privilegedDomains.add(null); // boot domain/bundle-0 always have permissions
     computeDomainInfo(debug.locations(), permissions);
     this.currentDomainReference = domainReferences.get(currentDomainIndex);
     this.currentDomain = domains.get(currentDomainIndex);
@@ -175,7 +181,7 @@ public class AccessControlContextInfo {
    * @return <code>true</code> if the specified domain is granted the permission; <code>false</code>
    *     otherwise
    */
-  public boolean isPrivileged(String domain) {
+  public boolean isPrivileged(@Nullable String domain) {
     return privilegedDomains.contains(domain);
   }
 
@@ -199,25 +205,70 @@ public class AccessControlContextInfo {
     return new AccessControlContextInfo(this, domain);
   }
 
+  @SuppressWarnings("squid:S106" /* this is a console application */)
+  void dumpTroubleshootingInfo(boolean osgi) {
+    System.err.println(ACDebugger.PREFIX + "LOCAL 'i' VARIABLE: " + currentDomainIndex);
+    System.err.println(
+        ACDebugger.PREFIX
+            + "CURRENT DOMAIN: "
+            + currentDomain
+            + " >"
+            + currentDomainReference
+            + '>');
+    System.err.println(ACDebugger.PREFIX + "ACCESS CONTROL CONTEXT:");
+    for (int i = 0; i < domains.size(); i++) {
+      final ObjectReference domainReference = domainReferences.get(i);
+      String domain = domains.get(i);
+      final boolean privileged = isPrivileged(domain);
+
+      if (domain == null) {
+        domain = osgi ? StackFrameInformation.BUNDLE0 : StackFrameInformation.BOOT_DOMAIN;
+      }
+      System.err.println(
+          ACDebugger.PREFIX
+              + "  "
+              + (privileged ? "" : "*")
+              + domain
+              + " <"
+              + domainReference
+              + '>');
+    }
+  }
+
   @SuppressWarnings("squid:S1871" /* order of each "if"s is important so we cannot combine them */)
   private void computeDomainInfo(LocationUtil locations, PermissionUtil permissions) {
     for (int i = 0; i < domainReferences.size(); i++) {
       final ObjectReference domainReference = domainReferences.get(i);
-      final String domain = locations.get(domainReference);
+      String domain = locations.get(domainReference);
 
-      domains.add(domain);
       if (i == currentDomainIndex) {
         // we know we don't have privileges since we failed here so continue but only after
         // having added the current domain to the context list
+        // if domain is null then the SecurityCheckInformation will actually fail debugging and
+        // generated troubleshooting info as it cannot be the boot domain/bundle-0 since that one
+        // should have all permissions. It has to be some protection domain we cannot correlate to
+        // a domain location or a bundle name
       } else if (i < currentDomainIndex) { // we know we have privileges since we failed after `i`
+        // if domain is null because it is some protection domain we cannot correlate to a domain
+        // location or a bundle name, than that is still ok as we can treat it as the boot domain/
+        // bundle location which has all permissions
         permissions.grant(domain, permissionInfos);
         privilegedDomains.add(domain);
-      } else if (permissions.implies(domain, permissionInfos)) { // check cache
+      } else if ((domain != null) && permissions.implies(domain, permissionInfos)) { // check cache
         privilegedDomains.add(domain);
       } else if (permissions.implies(domainReference, permission)) { // check attached VM
         permissions.grant(domain, permissionInfos);
         privilegedDomains.add(domain);
+      } else if (domain == null) {
+        // domain is null because it is some protection domain we cannot correlate to a domain
+        // location or a bundle name and we do not have permissions which means that it cannot be
+        // the boot domain/ bundle location which has all permissions
+        // we therefore have a situation we cannot debug. The SecurityCheckInformation will actually
+        // report this error when it is trying to match computed domains with the ones here
+        // -- change the location to an unknown one
+        domain = "unknown-" + domainReference;
       }
+      domains.add(domain);
     }
   }
 

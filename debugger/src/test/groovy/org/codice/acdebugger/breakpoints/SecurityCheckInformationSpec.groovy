@@ -289,9 +289,9 @@ class SecurityCheckInformationSpec extends ReflectionSpecification {
       FRAME5
   ]
   @Shared
-  def DOMAINS_WITH_DO_PRIVILEGED = [BOOT_DOMAIN, DOMAIN1, DOMAIN2, DOMAIN2, DOMAIN3, PROXY_DOMAIN, DOMAIN1, COMBINED_DOMAIN]
+  def DOMAINS_WITH_DO_PRIVILEGED = [BOOT_DOMAIN, DOMAIN1, DOMAIN2, DOMAIN2, DOMAIN3, PROXY_DOMAIN, DOMAIN1, DOMAIN4, COMBINED_DOMAIN]
   @Shared
-  def BUNDLES_WITH_DO_PRIVILEGED = [null, BUNDLE1, BUNDLE2, BUNDLE2, BUNDLE3, PROXY_BUNDLE, BUNDLE1, COMBINED_BUNDLE]
+  def BUNDLES_WITH_DO_PRIVILEGED = [null, BUNDLE1, BUNDLE2, BUNDLE2, BUNDLE3, PROXY_BUNDLE, BUNDLE1, BUNDLE4, COMBINED_BUNDLE]
   @Shared
   def ACC_WITH_DO_PRIVILEGED = new AccessControlContextInfo(DOMAINS_WITH_DO_PRIVILEGED, BUNDLES_WITH_DO_PRIVILEGED, 2, PERMISSION, PERMISSION_INFOS, [null, BUNDLE1] as Set<String>)
   @Shared
@@ -321,9 +321,9 @@ class SecurityCheckInformationSpec extends ReflectionSpecification {
       FRAME4 // ----------------
   ]
   @Shared
-  def DOMAINS_WITH_DO_AS = [BOOT_DOMAIN, DOMAIN1, DOMAIN2, DOMAIN2, BOOT_DOMAIN, BOOT_DOMAIN, DOMAIN3, DOMAIN1, COMBINED_DOMAIN]
+  def DOMAINS_WITH_DO_AS = [BOOT_DOMAIN, DOMAIN1, DOMAIN2, DOMAIN2, BOOT_DOMAIN, BOOT_DOMAIN, DOMAIN3, DOMAIN1, DOMAIN4, COMBINED_DOMAIN]
   @Shared
-  def BUNDLES_WITH_DO_AS = [null, BUNDLE1, BUNDLE2, BUNDLE2, null, null, BUNDLE3, BUNDLE1, COMBINED_BUNDLE]
+  def BUNDLES_WITH_DO_AS = [null, BUNDLE1, BUNDLE2, BUNDLE2, null, null, BUNDLE3, BUNDLE1, BUNDLE4, COMBINED_BUNDLE]
   @Shared
   def ACC_WITH_DO_AS = new AccessControlContextInfo(DOMAINS_WITH_DO_AS, BUNDLES_WITH_DO_AS, 2, PERMISSION, PERMISSION_INFOS, [null, BUNDLE1, BUNDLE4] as Set<String>)
   @Shared
@@ -355,6 +355,7 @@ class SecurityCheckInformationSpec extends ReflectionSpecification {
         threadStack() >> stack
         canDoPrivilegedBlocks() >> can_do_privileged_blocks
         reflection() >> REFLECTION
+        isOSGi() >> true
       }
 
     when:

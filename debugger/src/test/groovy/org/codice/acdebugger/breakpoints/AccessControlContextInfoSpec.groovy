@@ -27,6 +27,7 @@ class AccessControlContextInfoSpec extends Specification {
   static def BUNDLE = 'bundle.name'
   static def BUNDLE2 = 'bundle.name2'
   static def BUNDLE3 = 'bundle.name3'
+  static def UNKNOWN_TOSTRING = 'ref'
 
   @Shared
   def PERMISSION = Stub(ObjectReference)
@@ -34,6 +35,10 @@ class AccessControlContextInfoSpec extends Specification {
   @Shared
   def PERMISSION_INFOS = [PERMISSION_INFO, PERMISSION_INFO2] as Set<String>
 
+  @Shared
+  def UNKNOWN_DOMAIN = Stub(ObjectReference) {
+    toString() >> UNKNOWN_TOSTRING
+  }
   @Shared
   def BOOT_DOMAIN = Stub(ObjectReference)
   @Shared
@@ -52,6 +57,8 @@ class AccessControlContextInfoSpec extends Specification {
 
     when:
       def info = new AccessControlContextInfo(debug, context, local_i, PERMISSION)
+
+      info.dumpTroubleshootingInfo(true)
 
     then:
       info.permissions == PERMISSION_INFOS
@@ -89,14 +96,15 @@ class AccessControlContextInfoSpec extends Specification {
       0 * permissions.grant(*_)
 
     where:
-      when_what                                                                                    || context                                         | local_i || domains                                  | privileged               | current_domain | current_ref | domain_implies_count | domain_implies      | ref_implies_count | ref_implies      || granted_domains
-      'only one domain is in the context'                                                          || [DOMAIN]                                        | 0       || [BUNDLE]                                 | []                       | BUNDLE         | DOMAIN      | [0]                  | [_]                 | [0]               | [_]              || []
-      'multiple domains are in the context and failing on the last one'                            || [BOOT_DOMAIN, DOMAIN, DOMAIN2]                  | 2       || [null, BUNDLE, BUNDLE2]                  | [null, BUNDLE]           | BUNDLE2        | DOMAIN2     | [0, 0, 0]            | [_, _, _]           | [0, 0, 0]         | [_, _, _]        || [null, BUNDLE]
-      'duplicate domains are in the context'                                                       || [BOOT_DOMAIN, DOMAIN, DOMAIN2, DOMAIN, DOMAIN3] | 4       || [null, BUNDLE, BUNDLE2, BUNDLE, BUNDLE3] | [null, BUNDLE, BUNDLE2]  | BUNDLE3        | DOMAIN3     | [0, 0, 0, 0, 0]      | [_, _, _, _, _]     | [0, 0, 0, 0, 0]   | [_, _, _, _, _]  || [null, BUNDLE, BUNDLE2, BUNDLE]
-      'all unknown domains were already granted in the cache'                                      || [BOOT_DOMAIN, DOMAIN, DOMAIN2]                  | 0       || [null, BUNDLE, BUNDLE2]                  | [BUNDLE, BUNDLE2]        | null           | BOOT_DOMAIN | [0, 1, 1]            | [_, true, true]     | [0, 0, 0]         | [_, _, _]         | []
-      'all unknown domains were not already granted in the cache and none were granted in the VM'  || [BOOT_DOMAIN, DOMAIN, DOMAIN2]                  | 0       || [null, BUNDLE, BUNDLE2]                  | []                       | null           | BOOT_DOMAIN | [0, 1, 1]            | [_, false, false]   | [0, 1, 1]         | [_, false, false] | []
-      'all unknown domains were not already granted in the cache and some were granted in the VM'  || [BOOT_DOMAIN, DOMAIN, DOMAIN2]                  | 0       || [null, BUNDLE, BUNDLE2]                  | [BUNDLE2]                | null           | BOOT_DOMAIN | [0, 1, 1]            | [_, false, false]   | [0, 1, 1]         | [_, false, true]  | [BUNDLE2]
-      'some unknown domains were not already granted in the cache and some were granted in the VM' || [BOOT_DOMAIN, DOMAIN, DOMAIN2, DOMAIN3]         | 1       || [null, BUNDLE, BUNDLE2, BUNDLE3]         | [null, BUNDLE2, BUNDLE3] | BUNDLE         | DOMAIN      | [0, 0, 1, 1]         | [_, _, true, false] | [0, 0, 0, 1]      | [_, _, _, true]   | [null, BUNDLE3]
+      when_what                                                                                                                                || context                                         | local_i || domains                                        | privileged               | current_domain | current_ref | domain_implies_count | domain_implies      | ref_implies_count | ref_implies       || granted_domains
+      'only one domain is in the context'                                                                                                      || [DOMAIN]                                        | 0       || [BUNDLE]                                       | [null]                   | BUNDLE         | DOMAIN      | [0]                  | [_]                 | [0]               | [_]               || []
+      'multiple domains are in the context and failing on the last one'                                                                        || [BOOT_DOMAIN, DOMAIN, DOMAIN2]                  | 2       || [null, BUNDLE, BUNDLE2]                        | [null, BUNDLE]           | BUNDLE2        | DOMAIN2     | [0, 0, 0]            | [_, _, _]           | [0, 0, 0]         | [_, _, _]         || [null, BUNDLE]
+      'duplicate domains are in the context'                                                                                                   || [BOOT_DOMAIN, DOMAIN, DOMAIN2, DOMAIN, DOMAIN3] | 4       || [null, BUNDLE, BUNDLE2, BUNDLE, BUNDLE3]       | [null, BUNDLE, BUNDLE2]  | BUNDLE3        | DOMAIN3     | [0, 0, 0, 0, 0]      | [_, _, _, _, _]     | [0, 0, 0, 0, 0]   | [_, _, _, _, _]   || [null, BUNDLE, BUNDLE2, BUNDLE]
+      'all unknown domains were already granted in the cache'                                                                                  || [BOOT_DOMAIN, DOMAIN, DOMAIN2]                  | 0       || [null, BUNDLE, BUNDLE2]                        | [null, BUNDLE, BUNDLE2]  | null           | BOOT_DOMAIN | [0, 1, 1]            | [_, true, true]     | [0, 0, 0]         | [_, _, _]         || []
+      'all unknown domains were not already granted in the cache and none were granted in the VM'                                              || [DOMAIN, DOMAIN2]                               | 0       || [BUNDLE, BUNDLE2]                              | [null]                   | BUNDLE         | DOMAIN      | [0, 1]               | [_, false]          | [0, 1]            | [_, false]        || []
+      'all unknown domains were not already granted in the cache and none were granted in the VM and unable to find location for some domains' || [DOMAIN, UNKNOWN_DOMAIN, DOMAIN2]               | 0       || [BUNDLE, "unknown-$UNKNOWN_TOSTRING", BUNDLE2] | [null]                   | BUNDLE         | DOMAIN      | [0, 0, 1]            | [_, _, false]       | [0, 1, 1]         | [_, false, false] || []
+      'all unknown domains were not already granted in the cache and none were granted in the VM'                                              || [BOOT_DOMAIN, DOMAIN, DOMAIN2]                  | 0       || [null, BUNDLE, BUNDLE2]                        | [null, BUNDLE2]          | null           | BOOT_DOMAIN | [0, 1, 1]            | [_, false, false]   | [0, 1, 1]         | [_, false, true]  || [BUNDLE2]
+      'some unknown domains were not already granted in the cache and some were granted in the VM'                                             || [BOOT_DOMAIN, DOMAIN, DOMAIN2, DOMAIN3]         | 1       || [null, BUNDLE, BUNDLE2, BUNDLE3]               | [null, BUNDLE2, BUNDLE3] | BUNDLE         | DOMAIN      | [0, 0, 1, 1]         | [_, _, true, false] | [0, 0, 0, 1]      | [_, _, _, true]   || [null, BUNDLE3]
   }
 
   @Unroll

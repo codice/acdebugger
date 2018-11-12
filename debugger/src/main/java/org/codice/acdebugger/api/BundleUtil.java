@@ -15,6 +15,7 @@ package org.codice.acdebugger.api;
 
 // NOSONAR - squid:S1191 - Using the Java debugger API
 
+import com.google.common.annotations.VisibleForTesting;
 import com.sun.jdi.ObjectReference; // NOSONAR
 import com.sun.jdi.ReferenceType; // NOSONAR
 import com.sun.jdi.StackFrame; // NOSONAR
@@ -29,7 +30,7 @@ public class BundleUtil implements LocationUtil {
   private static final String BUNDLE_INFO_CACHE = "debug.bundle.info.cache";
 
   /** Constant used in the bundle cache when a given object is known to belong to bundle-0. */
-  private static final String NULL_BUNDLE = "NULL-BUNDLE";
+  @VisibleForTesting static final String NULL_BUNDLE = "NULL-BUNDLE";
 
   private final Debug debug;
 

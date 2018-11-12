@@ -15,11 +15,17 @@ package org.codice.acdebugger.api;
 
 // NOSONAR - squid:S1191 - Using the Java debugger API
 
+import com.sun.jdi.IncompatibleThreadStateException; // NOSONAR
+import com.sun.jdi.Location; // NOSONAR
+import com.sun.jdi.ObjectReference; // NOSONAR
+import com.sun.jdi.StackFrame; // NOSONAR
 import com.sun.jdi.ThreadReference; // NOSONAR
 import com.sun.jdi.VirtualMachine; // NOSONAR
 import com.sun.jdi.event.Event; // NOSONAR
 import com.sun.jdi.event.LocatableEvent; // NOSONAR
 import com.sun.jdi.request.EventRequestManager; // NOSONAR
+import java.util.ArrayList;
+import java.util.List;
 import java.util.function.Supplier;
 import javax.annotation.Nullable;
 import org.codice.acdebugger.impl.Backdoor;
@@ -172,6 +178,34 @@ public abstract class Debug {
   }
 
   /**
+   * Gets stack information about the current thread associated with this debug session,
+   *
+   * @return a list of stack frame information corresponding to each frame in the current thread's
+   *     stack
+   * @throws IllegalStateException if currently not associated with a thread
+   * @throws IncompatibleThreadStateException if the thread is not suspended in the target VM
+   */
+  public List<StackFrameInformation> threadStack() throws IncompatibleThreadStateException {
+    final ThreadReference thread = thread();
+    final LocationUtil locations = locations();
+    final List<StackFrameInformation> stack = new ArrayList<>(thread.frameCount());
+
+    // don't cache the set of stack as it will change every time we invoke()
+    // something using the thread
+    for (int i = 0; i < thread.frameCount(); i++) {
+      final StackFrame frame = thread.frame(i);
+      final Location location = frame.location(); // cache before we invoke anything on the thread
+      final ObjectReference thisObject = frame.thisObject(); // cache before getting the location
+      final String domain = locations.get(frame);
+      final StackFrameInformation currentFrame =
+          new StackFrameInformation(domain, location, thisObject);
+
+      stack.add(currentFrame);
+    }
+    return stack;
+  }
+
+  /**
    * Retrieves a value given a key from the current debug context's cache.
    *
    * @param <T> the type of the value to retrieve
@@ -274,7 +308,7 @@ public abstract class Debug {
   }
 
   /**
-   * Checks whether or not to consider <code>doPrivileged()</code> blocks when analysing security
+   * Checks whether or not to consider <code>doPrivileged()</code> blocks when analyzing security
    * failures.
    *
    * @return <code>true</code> to consider <code>doPrivileged()</code> blocks for possible

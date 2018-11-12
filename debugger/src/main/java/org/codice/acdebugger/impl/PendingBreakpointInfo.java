@@ -34,6 +34,10 @@ public class PendingBreakpointInfo {
     this.location = location;
   }
 
+  public ClassPrepareRequest getRequest() {
+    return request;
+  }
+
   public BreakpointLocation getLocation() {
     return location;
   }

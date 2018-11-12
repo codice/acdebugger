@@ -13,11 +13,12 @@
  */
 package org.codice.acdebugger;
 
+import com.google.common.annotations.VisibleForTesting;
 import java.net.ConnectException;
 import java.util.Date;
 import java.util.concurrent.Callable;
 import java.util.concurrent.TimeUnit;
-import org.codice.acdebugger.breakpoints.AccessControlContextCheckBreakpointProcessor;
+import org.codice.acdebugger.breakpoints.AccessControlContextCheckProcessor;
 import org.codice.acdebugger.breakpoints.BackdoorProcessor;
 import org.codice.acdebugger.cli.PropertiesVersionProvider;
 import org.codice.acdebugger.impl.Debugger;
@@ -161,8 +162,8 @@ public class ACDebugger implements Callable<Void> {
 
       // registering breakpoints
       debugger.add(new BackdoorProcessor());
-      debugger.add(new AccessControlContextCheckBreakpointProcessor());
-      // debugger.add(new ImpliesBreakpointProcessor()); // This slows the system to a crawl :-(
+      debugger.add(new AccessControlContextCheckProcessor());
+      // debugger.add(new ImpliesProcessor()); // This slows the system to a crawl :-(
 
       debugger.loop();
 
@@ -171,6 +172,76 @@ public class ACDebugger implements Callable<Void> {
       }
       System.out.println(ACDebugger.PREFIX);
     }
+  }
+
+  @VisibleForTesting
+  @SuppressWarnings("squid:S00107" /* used for testing only */)
+  void init(
+      boolean admin,
+      boolean continuous,
+      boolean debug,
+      boolean granting,
+      boolean failing,
+      boolean service,
+      String transport,
+      String host,
+      String port,
+      boolean wait,
+      long timeout,
+      boolean reconnect,
+      boolean osgi) {
+    this.admin = admin;
+    this.continuous = continuous;
+    this.debug = debug;
+    this.granting = granting;
+    this.failing = failing;
+    this.service = service;
+    this.transport = transport;
+    this.host = host;
+    this.port = port;
+    this.wait = wait;
+    this.timeout = timeout;
+    this.reconnect = reconnect;
+    this.osgi = osgi;
+  }
+
+  @SuppressWarnings({
+    "squid:S00112", /* Forced to by the Java debugger API */
+    "squid:S106" /* this is a console application */
+  })
+  @VisibleForTesting
+  Debugger attach() throws Exception {
+    final long endTime = System.currentTimeMillis() + TimeUnit.MINUTES.toMillis(timeout);
+
+    while (true) {
+      try {
+        return newDebugger().attach();
+      } catch (ConnectException e) {
+        if (!wait || (System.currentTimeMillis() > endTime)) {
+          System.err.println(
+              ACDebugger.PREFIX
+                  + "Unable to connect to "
+                  + host
+                  + ":"
+                  + port
+                  + " over "
+                  + transport);
+          System.exit(1);
+        } else {
+          sleep();
+        }
+      }
+    }
+  }
+
+  @VisibleForTesting
+  void sleep() throws InterruptedException {
+    Thread.sleep(5000L);
+  }
+
+  @VisibleForTesting
+  Debugger newDebugger() {
+    return new Debugger(transport, host, port);
   }
 
   @SuppressWarnings("squid:S106" /* this is a console application */)
@@ -185,34 +256,6 @@ public class ACDebugger implements Callable<Void> {
       System.out.println(ACDebugger.PREFIX + "OSGi Debugging");
     } else {
       System.out.println(ACDebugger.PREFIX + "Non-OSGi Debugging");
-    }
-  }
-
-  @SuppressWarnings({
-    "squid:S00112", /* Forced to by the Java debugger API */
-    "squid:S106" /* this is a console application */
-  })
-  private Debugger attach() throws Exception {
-    final long endTime = System.currentTimeMillis() + TimeUnit.MINUTES.toMillis(timeout);
-
-    while (true) {
-      try {
-        return new Debugger(transport, host, port).attach();
-      } catch (ConnectException e) {
-        if (!wait || (System.currentTimeMillis() > endTime)) {
-          System.err.println(
-              ACDebugger.PREFIX
-                  + "Unable to connect to "
-                  + host
-                  + ":"
-                  + port
-                  + " over "
-                  + transport);
-          System.exit(1);
-        } else {
-          Thread.sleep(5000L);
-        }
-      }
     }
   }
 }

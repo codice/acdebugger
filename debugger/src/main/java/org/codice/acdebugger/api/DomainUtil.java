@@ -115,20 +115,23 @@ public class DomainUtil implements LocationUtil {
     if (info != null) {
       return info;
     }
+    final PermissionUtil permissions = debug.permissions();
+
     info = new ArrayList<>(domains.size());
     for (int i = 0; i < domains.size(); i++) {
       final ObjectReference domain = (ObjectReference) domains.get(i);
       final String location = get0(domain, cache);
       boolean implies;
 
-      if (i < firstDomainWithoutPermission) {
+      if ((i < firstDomainWithoutPermission)
+          || (domain == null)
+          || (location == null)) { // boot domain always have permissions
         implies = true;
       } else {
-        final PermissionUtil permissions = debug.permissions();
-
-        implies = permissions.implies(location, permissionInfos); // check cache
+        // check cache based on its location
+        implies = permissions.implies(location, permissionInfos);
         if (!implies && (i > firstDomainWithoutPermission)) { // check attached VM
-          // we now the first one doesn't so no need to check again
+          // we know the first one doesn't so no need to check again
           implies = permissions.implies(domain, permission);
         }
       }

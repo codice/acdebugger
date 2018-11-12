@@ -13,6 +13,7 @@
  */
 package org.codice.acdebugger.api;
 
+import com.google.common.annotations.VisibleForTesting;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -25,6 +26,15 @@ import org.codice.acdebugger.ACDebugger;
 
 /** Represents a solution to a security failure that was detected while debugging. */
 public class SecuritySolution implements Comparable<SecuritySolution> {
+  /**
+   * The original full stack trace at the point the security exception was about to be thrown if
+   * known
+   */
+  private final List<StackFrameInformation> originalStack;
+
+  /** The full stack trace possibly modified for a given solution if known */
+  protected final List<StackFrameInformation> stack;
+
   /** The failed permissions info */
   protected final Set<String> permissionInfos;
 
@@ -35,19 +45,29 @@ public class SecuritySolution implements Comparable<SecuritySolution> {
   protected final List<StackFrameInformation> doPrivileged;
 
   /**
-   * Constructs a solution.
+   * Constructs a solution with no stack info.
    *
+   * @param permissionInfos the failed permissions info
+   * @param grantedDomains domains that are granted the permission
+   */
+  public SecuritySolution(Set<String> permissionInfos, Set<String> grantedDomains) {
+    this(Collections.emptyList(), permissionInfos, grantedDomains, Collections.emptyList());
+  }
+
+  /**
+   * Constructs a solution with the provided stack information.
+   *
+   * @param stack the full stack trace at the point the security exception was about to be thrown
    * @param permissionInfos the failed permissions info
    * @param grantedDomains domains that are granted the permission
    * @param doPrivileged list of locations where to add doPrivileged() blocks
    */
   public SecuritySolution(
+      List<StackFrameInformation> stack,
       Set<String> permissionInfos,
       Set<String> grantedDomains,
       List<StackFrameInformation> doPrivileged) {
-    this.permissionInfos = permissionInfos;
-    this.grantedDomains = grantedDomains;
-    this.doPrivileged = doPrivileged;
+    this(stack, stack, permissionInfos, grantedDomains, doPrivileged);
   }
 
   /**
@@ -56,9 +76,64 @@ public class SecuritySolution implements Comparable<SecuritySolution> {
    * @param solution the original solution to clone
    */
   protected SecuritySolution(SecuritySolution solution) {
-    this.permissionInfos = solution.permissionInfos;
-    this.grantedDomains = new LinkedHashSet<>(solution.grantedDomains);
-    this.doPrivileged = new ArrayList<>(solution.doPrivileged);
+    this(solution, solution.stack);
+  }
+
+  /**
+   * Constructs a solution.
+   *
+   * @param solution the original solution to clone
+   * @param index the index in the stack where to extend privileges
+   */
+  protected SecuritySolution(SecuritySolution solution, int index) {
+    // extend the stack by adding a fake doPrivileged() at the specified index and duplicating that
+    // frame after it to show that it is still in the stack after the call to doPrivileged()
+    this(solution, StackFrameInformation.doPrivilegedAt(solution.stack, index));
+    doPrivileged.add(solution.stack.get(index));
+  }
+
+  @VisibleForTesting
+  SecuritySolution(
+      List<StackFrameInformation> originalStack,
+      List<StackFrameInformation> stack,
+      Set<String> permissionInfos,
+      Set<String> grantedDomains,
+      List<StackFrameInformation> doPrivileged) {
+    this.originalStack = originalStack;
+    this.stack = stack;
+    this.permissionInfos = permissionInfos;
+    this.grantedDomains = grantedDomains;
+    this.doPrivileged = doPrivileged;
+  }
+
+  private SecuritySolution(SecuritySolution solution, List<StackFrameInformation> stack) {
+    this(
+        solution.originalStack,
+        stack,
+        solution.permissionInfos,
+        new LinkedHashSet<>(solution.grantedDomains),
+        new ArrayList<>(solution.doPrivileged));
+  }
+
+  /**
+   * Gets the original stack information for this security solution at the point the security
+   * exception was about to be thrown.
+   *
+   * @return the original stack information for the corresponding security exception or empty if the
+   *     exception is generated not as a result of a stack check
+   */
+  public List<StackFrameInformation> getOriginalStack() {
+    return Collections.unmodifiableList(originalStack);
+  }
+
+  /**
+   * Gets the stack information for this security solution (possibly modified).
+   *
+   * @return the stack information for this security solution (possibly modified) or empty if the
+   *     exception is generated not as a result of a stack check
+   */
+  public List<StackFrameInformation> getStack() {
+    return Collections.unmodifiableList(stack);
   }
 
   /**
@@ -155,8 +230,12 @@ public class SecuritySolution implements Comparable<SecuritySolution> {
       return d;
     }
     // finally, compare each doPrivileged locations to find the best choice
+    // to do so, we shall give priority to the frame that came first in the original stack
     for (int i = 0; i < doPrivileged.size(); i++) {
-      d = doPrivileged.get(i).compareTo(s.doPrivileged.get(i));
+      d =
+          Integer.compare(
+              originalStack.indexOf(doPrivileged.get(i)),
+              originalStack.indexOf(s.doPrivileged.get(i)));
       if (d != 0) {
         return d;
       }
@@ -166,11 +245,13 @@ public class SecuritySolution implements Comparable<SecuritySolution> {
 
   @Override
   public final int hashCode() {
+    // purposely not testing stack and original stack
     return Objects.hash(permissionInfos, grantedDomains, doPrivileged);
   }
 
   @Override
   public final boolean equals(Object obj) {
+    // purposely not testing stack and original stack
     if (obj == this) {
       return true;
     } else if (obj instanceof SecuritySolution) {
@@ -181,6 +262,17 @@ public class SecuritySolution implements Comparable<SecuritySolution> {
           && doPrivileged.equals(s.doPrivileged);
     }
     return false;
+  }
+
+  @Override
+  public String toString() {
+    return "SecuritySolution(permission="
+        + permissionInfos
+        + ", grantedDomains="
+        + grantedDomains
+        + ", doPrivileged="
+        + doPrivileged
+        + ')';
   }
 
   @SuppressWarnings("squid:S106" /* this is a console application */)

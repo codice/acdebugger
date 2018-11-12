@@ -20,6 +20,7 @@ import com.sun.jdi.event.MethodExitEvent; // NOSONAR
 import com.sun.jdi.request.EventRequest; // NOSONAR
 import com.sun.jdi.request.MethodExitRequest; // NOSONAR
 import java.util.stream.Stream;
+import javax.annotation.Nullable;
 import org.codice.acdebugger.api.BreakpointProcessor;
 import org.codice.acdebugger.api.Debug;
 import org.codice.acdebugger.impl.Backdoor;
@@ -34,6 +35,7 @@ public class BackdoorProcessor implements BreakpointProcessor {
   }
 
   @Override
+  @Nullable
   public EventRequest createRequest(Debug debug, BreakpointLocation location) {
     if (debug.backdoor().init(debug)) { // we are initialized or we managed to initialize
       return null;

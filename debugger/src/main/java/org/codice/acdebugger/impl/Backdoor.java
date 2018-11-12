@@ -20,6 +20,7 @@ import com.sun.jdi.ArrayReference; // NOSONAR
 import com.sun.jdi.ClassType; // NOSONAR
 import com.sun.jdi.Method; // NOSONAR
 import com.sun.jdi.ObjectReference; // NOSONAR
+import com.sun.jdi.ReferenceType;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Objects;
@@ -28,7 +29,7 @@ import javax.annotation.Nullable;
 import org.codice.acdebugger.ACDebugger;
 import org.codice.acdebugger.api.Debug;
 import org.codice.acdebugger.api.ReflectionUtil;
-import org.codice.acdebugger.breakpoints.HasListenServicePermissionBreakpointProcessor;
+import org.codice.acdebugger.breakpoints.HasListenServicePermissionProcessor;
 import org.codice.acdebugger.common.DomainInfo;
 import org.codice.acdebugger.common.JsonUtils;
 import org.codice.acdebugger.common.ServicePermissionInfo;
@@ -65,6 +66,7 @@ public class Backdoor {
    *
    * @param debug the current debug information
    * @param backdoorReference the backdoor object reference
+   * @throws IllegalStateException if <code>backdoorReference</code> is <code>null</code>
    */
   @SuppressWarnings({
     "squid:S106", /* this is a console application */
@@ -75,48 +77,39 @@ public class Backdoor {
       throw new IllegalStateException("unable to locate backdoor instance");
     }
     final ReflectionUtil reflection = debug.reflection();
+    final ReferenceType backdoorType = backdoorReference.referenceType();
 
     try {
       this.initializing = true;
       this.backdoorReference = backdoorReference;
       this.getBundle =
           reflection.findMethod(
-              backdoorReference.referenceType(),
-              "getBundle",
-              Backdoor.METHOD_SIGNATURE_OBJ_ARG_STRING_RESULT);
+              backdoorType, "getBundle", Backdoor.METHOD_SIGNATURE_OBJ_ARG_STRING_RESULT);
       this.getBundleVersion =
           reflection.findMethod(
-              backdoorReference.referenceType(),
-              "getBundleVersion",
-              Backdoor.METHOD_SIGNATURE_OBJ_ARG_STRING_RESULT);
+              backdoorType, "getBundleVersion", Backdoor.METHOD_SIGNATURE_OBJ_ARG_STRING_RESULT);
       this.getDomain =
           reflection.findMethod(
-              backdoorReference.referenceType(),
-              "getDomain",
-              Backdoor.METHOD_SIGNATURE_OBJ_ARG_STRING_RESULT);
+              backdoorType, "getDomain", Backdoor.METHOD_SIGNATURE_OBJ_ARG_STRING_RESULT);
       this.getDomainInfo =
           reflection.findMethod(
-              backdoorReference.referenceType(),
+              backdoorType,
               "getDomainInfo",
               "(Ljava/lang/Object;Ljava/lang/Object;)Ljava/lang/String;");
       this.getPermissionStrings =
           reflection.findMethod(
-              backdoorReference.referenceType(),
+              backdoorType,
               "getPermissionStrings",
               Backdoor.METHOD_SIGNATURE_OBJ_ARG_STRING_RESULT);
       this.grantPermission =
           reflection.findMethod(
-              backdoorReference.referenceType(),
-              "grantPermission",
-              "(Ljava/lang/String;Ljava/lang/String;)V");
+              backdoorType, "grantPermission", "(Ljava/lang/String;Ljava/lang/String;)V");
       this.hasPermission =
           reflection.findMethod(
-              backdoorReference.referenceType(),
-              "hasPermission",
-              "(Ljava/lang/Object;Ljava/lang/Object;)Z");
+              backdoorType, "hasPermission", "(Ljava/lang/Object;Ljava/lang/Object;)Z");
       this.getServicePermissionInfoAndGrant =
           reflection.findMethod(
-              backdoorReference.referenceType(),
+              backdoorType,
               "getServicePermissionInfoAndGrant",
               "(Ljava/lang/String;Ljava/lang/Object;Ljava/lang/Object;Z)Ljava/lang/String;");
       System.out.println(ACDebugger.PREFIX);
@@ -128,7 +121,7 @@ public class Backdoor {
     // loaded since the backdoor is initialized
     if (debug.isMonitoringService()) {
       try {
-        debug.add(new HasListenServicePermissionBreakpointProcessor());
+        debug.add(new HasListenServicePermissionProcessor());
       } catch (Exception e) { // cannot register breakpoint so continue without it
         e.printStackTrace();
       }

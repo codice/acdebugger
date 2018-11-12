@@ -34,6 +34,15 @@ public interface SecurityFailure {
   public List<StackFrameInformation> getStack();
 
   /**
+   * Checks if this failure is an acceptable one for which we shouldn't grant the missing
+   * permissions and simply let the security check fail.
+   *
+   * @return <code>true</code> if this is an acceptable security failure; <code>false</code>
+   *     otherwise
+   */
+  public boolean isAcceptable();
+
+  /**
    * Gets the matched permissions associated with this security failure if it was found to be an
    * acceptable failure.
    *
@@ -42,15 +51,6 @@ public interface SecurityFailure {
    */
   @Nullable
   public String getAcceptablePermissions();
-
-  /**
-   * Checks if this failure is an acceptable one for which we shouldn't grant the missing
-   * permissions and simply let the security check fail.
-   *
-   * @return <code>true</code> if this is an acceptable security failure; <code>false</code>
-   *     otherwise
-   */
-  public boolean isAcceptable();
 
   /**
    * Analyze this security failure in order to find solutions.

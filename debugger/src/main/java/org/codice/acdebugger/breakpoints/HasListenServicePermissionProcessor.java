@@ -31,7 +31,7 @@ import org.codice.acdebugger.impl.BreakpointLocation;
  *
  * <p><i>Note:</i> Verified with org.eclipse.osgi 3.12.50.
  */
-public class HasListenServicePermissionBreakpointProcessor implements BreakpointProcessor {
+public class HasListenServicePermissionProcessor implements BreakpointProcessor {
   @Override
   public final Stream<BreakpointLocation> locations() {
     return Stream.of(

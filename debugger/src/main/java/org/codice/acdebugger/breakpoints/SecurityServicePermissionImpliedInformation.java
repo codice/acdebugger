@@ -13,6 +13,7 @@
  */
 package org.codice.acdebugger.breakpoints;
 
+import com.google.common.annotations.VisibleForTesting;
 import java.util.Collections;
 import java.util.List;
 import java.util.Set;
@@ -40,7 +41,7 @@ class SecurityServicePermissionImpliedInformation extends SecuritySolution
    * @param permissionInfos the string representations of the missing service permission
    */
   SecurityServicePermissionImpliedInformation(String bundle, Set<String> permissionInfos) {
-    super(permissionInfos, Collections.singleton(bundle), Collections.emptyList());
+    super(permissionInfos, Collections.singleton(bundle));
     this.bundle = bundle;
   }
 
@@ -65,6 +66,11 @@ class SecurityServicePermissionImpliedInformation extends SecuritySolution
     return Collections.singletonList(this);
   }
 
+  @VisibleForTesting
+  String getBundle() {
+    return bundle;
+  }
+
   @SuppressWarnings("squid:S106" /* this is a console application */)
   @Override
   public void dump(boolean osgi, String prefix) {
@@ -87,13 +93,5 @@ class SecurityServicePermissionImpliedInformation extends SecuritySolution
     System.out.println(ACDebugger.PREFIX + "SOLUTIONS");
     System.out.println(ACDebugger.PREFIX + "---------");
     print(osgi);
-  }
-
-  @Override
-  public String toString() {
-    if (permissionInfos.size() == 1) {
-      return "Implied permission failure for " + bundle + ": " + permissionInfos.iterator().next();
-    }
-    return "Implied permissions failure for " + bundle + ": " + permissionInfos;
   }
 }

@@ -34,7 +34,7 @@ public class SystemProperties {
   private static final String METHOD_SIGNATURE_STRING_ARG_STRING_RESULT =
       "(Ljava/lang/String;)Ljava/lang/String;";
 
-  private ObjectReference systemPropertiesReference;
+  private ObjectReference systemReference;
 
   private boolean initializing = false;
 
@@ -44,21 +44,21 @@ public class SystemProperties {
    * Initializes the backdoor.
    *
    * @param debug the current debug information
-   * @param systemPropertiesReference the system properties reference
+   * @param systemReference the system properties reference
    */
   @SuppressWarnings("squid:S106" /* this is a console application */)
-  public synchronized void init(Debug debug, ObjectReference systemPropertiesReference) {
-    if (systemPropertiesReference == null) {
+  public synchronized void init(Debug debug, ObjectReference systemReference) {
+    if (systemReference == null) {
       throw new IllegalStateException("unable to locate system properties");
     }
     final ReflectionUtil reflection = debug.reflection();
 
     try {
       this.initializing = true;
-      this.systemPropertiesReference = systemPropertiesReference;
+      this.systemReference = systemReference;
       final Method getProperty =
           reflection.findMethod(
-              systemPropertiesReference.referenceType(),
+              systemReference.referenceType(),
               "getProperty",
               SystemProperties.METHOD_SIGNATURE_STRING_ARG_STRING_RESULT);
       final Map<String, String> map = new LinkedHashMap<>();
@@ -66,8 +66,7 @@ public class SystemProperties {
       PropertiesUtil.propertiesNames()
           .forEach(
               name -> {
-                final String value =
-                    reflection.invoke(systemPropertiesReference, getProperty, name);
+                final String value = reflection.invoke(systemReference, getProperty, name);
 
                 if (value != null) {
                   map.put(name, value);
@@ -95,7 +94,7 @@ public class SystemProperties {
   public synchronized boolean init(Debug debug) {
     if (initializing) {
       return false;
-    } else if (systemPropertiesReference == null) {
+    } else if (systemReference == null) {
       final ObjectReference ref =
           debug
               .reflection()

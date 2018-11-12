@@ -12,7 +12,9 @@
  *
  **/
 -->
-<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
 
     <parent>
@@ -50,6 +52,13 @@
             <groupId>info.picocli</groupId>
             <artifactId>picocli</artifactId>
         </dependency>
+
+        <dependency>
+            <groupId>org.codice.acdebugger</groupId>
+            <artifactId>acdebugger-backdoor</artifactId>
+            <version>${project.version}</version>
+            <scope>test</scope>
+        </dependency>
     </dependencies>
 
     <build>
@@ -79,7 +88,8 @@
                         <configuration>
                             <tasks>
                                 <echo message="unzipping tools.jar" />
-                                <unzip src="${java.home}/../lib/tools.jar" dest="${project.build.directory}/classes" />
+                                <unzip src="${java.home}/../lib/tools.jar"
+                                       dest="${project.build.directory}/classes" />
                             </tasks>
                         </configuration>
                         <goals>
@@ -108,6 +118,56 @@
                             <descriptorRefs>
                                 <descriptorRef>jar-with-dependencies</descriptorRef>
                             </descriptorRefs>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+            <plugin>
+                <groupId>org.jacoco</groupId>
+                <artifactId>jacoco-maven-plugin</artifactId>
+                <executions>
+                    <execution>
+                        <id>default-check</id>
+                        <goals>
+                            <goal>check</goal>
+                        </goals>
+                        <configuration>
+                            <haltOnFailure>true</haltOnFailure>
+                            <rules>
+                                <rule>
+                                    <element>BUNDLE</element>
+                                    <limits>
+                                        <limit implementation="org.codice.jacoco.LenientLimit">
+                                            <counter>INSTRUCTION</counter>
+                                            <value>COVEREDRATIO</value>
+                                            <minimum>0.95</minimum>
+                                        </limit>
+                                        <limit implementation="org.codice.jacoco.LenientLimit">
+                                            <counter>BRANCH</counter>
+                                            <value>COVEREDRATIO</value>
+                                            <minimum>0.93</minimum>
+                                        </limit>
+                                        <limit implementation="org.codice.jacoco.LenientLimit">
+                                            <counter>COMPLEXITY</counter>
+                                            <value>COVEREDRATIO</value>
+                                            <minimum>0.91</minimum>
+                                        </limit>
+                                    </limits>
+                                </rule>
+                            </rules>
+                            <!-- Must specify what to include otherwise, it accounts for all classes in the jar-with-dependencies -->
+                            <includes>
+                                <include>**/org/codice/acdebugger/*</include>
+                                <include>**/org/codice/acdebugger/api/*</include>
+                                <include>**/org/codice/acdebugger/breakpoints/*</include>
+                                <include>**/org/codice/acdebugger/cli/*</include>
+                                <include>**/org/codice/acdebugger/impl/*</include>
+                            </includes>
+                            <excludes>
+                                <!-- Old version of a breakpoint processor not used and requiring work -->
+                                <exclude>**/org/codice/acdebugger/breakpoints/ImpliesProcessor
+                                </exclude>
+                            </excludes>
                         </configuration>
                     </execution>
                 </executions>

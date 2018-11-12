@@ -15,15 +15,20 @@ package org.codice.acdebugger.breakpoints;
 
 // NOSONAR - squid:S1191 - Using the Java debugger API
 
+import com.google.common.annotations.VisibleForTesting;
 import com.sun.jdi.ArrayReference; // NOSONAR
+import com.sun.jdi.EnhancedStackFrame; // NOSONAR
 import com.sun.jdi.ObjectReference; // NOSONAR
+import com.sun.jdi.StackFrame; // NOSONAR
 import com.sun.jdi.ThreadReference; // NOSONAR
 import com.sun.jdi.request.EventRequest; // NOSONAR
+import java.security.Permission;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Stream;
 import org.codice.acdebugger.api.BreakpointProcessor;
 import org.codice.acdebugger.api.Debug;
+import org.codice.acdebugger.api.ReflectionUtil;
 import org.codice.acdebugger.api.SecuritySolution;
 import org.codice.acdebugger.impl.BreakpointInfo;
 import org.codice.acdebugger.impl.BreakpointLocation;
@@ -32,7 +37,15 @@ import org.codice.acdebugger.impl.BreakpointLocation;
  * Defines a breakpoint processor capable of intercepting security exceptions in the access
  * controller before they get thrown out.
  */
-public class AccessControlContextCheckBreakpointProcessor implements BreakpointProcessor {
+public class AccessControlContextCheckProcessor implements BreakpointProcessor {
+  /**
+   * Slot index in the {@link java.security.AccessControlContext#checkPermission(Permission)} method
+   * corresponding to the local i loop variable used when the security manager is iterating all
+   * domains in the context. We are forced to use a slot index and not the variable name because
+   * that class is never compiled with debug information.
+   */
+  @VisibleForTesting static final int LOCAL_I_SLOT_INDEX = 3;
+
   @Override
   public Stream<BreakpointLocation> locations() {
     return Stream.of(
@@ -47,31 +60,29 @@ public class AccessControlContextCheckBreakpointProcessor implements BreakpointP
   @Override
   public void process(BreakpointInfo info, Debug debug) throws Exception {
     final ThreadReference thread = debug.thread();
+    final ReflectionUtil reflection = debug.reflection();
     final ArrayReference context =
-        debug
-            .reflection()
-            .get(thread.frame(0).thisObject(), "context", "[Ljava/security/ProtectionDomain;");
-    final int local_i = ReadDebugIndex.getIndex(thread);
-    final ObjectReference permission = (ObjectReference) thread.frame(0).getArgumentValues().get(0);
-    final SecurityCheckInformation security =
-        new SecurityCheckInformation(debug, context, local_i, permission);
+        reflection.get(
+            thread.frame(0).thisObject(), "context", "[Ljava/security/ProtectionDomain;");
+    final EnhancedStackFrame frame = enhance(thread.frame(0));
+    final int local_i =
+        reflection.fromMirror(
+            frame.getValue(AccessControlContextCheckProcessor.LOCAL_I_SLOT_INDEX, "I"));
+    final ObjectReference permission = (ObjectReference) frame.getArgumentValues().get(0);
+    final SecurityCheckInformation security = process(debug, context, local_i, permission);
 
     if (security.getFailedDomain() != null) {
-      if (!security.isAcceptable()) {
-        // check if we have only one solution and that solution is to only grant permission(s)
-        // (no privileged blocks) in which case we shall cache them to avoid going through all
-        // of this again
-        final List<SecuritySolution> solutions = security.analyze();
+      // check if we have only one solution and that solution is to only grant permission(s)
+      // (no privileged blocks) in which case we shall cache them to avoid going through all
+      // of this again
+      final List<SecuritySolution> solutions = security.analyze();
 
-        if (solutions.size() == 1) {
-          final SecuritySolution solution = solutions.get(0);
-          final Set<String> grantedDomains = solution.getGrantedDomains();
+      if (solutions.size() == 1) {
+        final SecuritySolution solution = solutions.get(0);
+        final Set<String> grantedDomains = solution.getGrantedDomains();
 
-          if (!grantedDomains.isEmpty() && solution.getDoPrivilegedLocations().isEmpty()) {
-            solution
-                .getGrantedDomains()
-                .forEach(d -> debug.permissions().grant(d, solution.getPermissions()));
-          }
+        if (!grantedDomains.isEmpty() && solution.getDoPrivilegedLocations().isEmpty()) {
+          grantedDomains.forEach(d -> debug.permissions().grant(d, solution.getPermissions()));
         }
       }
       debug.record(security);
@@ -82,8 +93,27 @@ public class AccessControlContextCheckBreakpointProcessor implements BreakpointP
     if (!debug.isFailing() && debug.isContinuous() && !security.isAcceptable()) {
       // force early return as if no exception is thrown, that way we simulate no security
       // exceptions; allowing us to record what is missing while continuing to run
-      thread.forceEarlyReturn(debug.reflection().getVoid());
+      thread.forceEarlyReturn(reflection.getVoid());
     } // else - let it fail as intended since we failing or we aren't continuing or again it is
     //          an acceptable failure
+  }
+
+  @VisibleForTesting
+  EnhancedStackFrame enhance(StackFrame frame) {
+    return EnhancedStackFrame.of(frame);
+  }
+
+  @VisibleForTesting
+  @SuppressWarnings({
+    "squid:S00117", /* name is clearer that way */
+    "squid:S00112" /* Forced to by the Java debugger API */
+  })
+  SecurityCheckInformation process(
+      Debug debug, ArrayReference context, int local_i, ObjectReference permission)
+      throws Exception {
+    return new SecurityCheckInformation(
+        debug,
+        new AccessControlContextInfo( // domains in the context can only be object references
+            debug, (List<ObjectReference>) (List) context.getValues(), local_i, permission));
   }
 }

@@ -13,6 +13,7 @@
  */
 package org.codice.acdebugger.backdoor;
 
+import com.google.common.annotations.VisibleForTesting;
 import java.io.FilePermission;
 import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
@@ -28,7 +29,6 @@ import java.security.PrivilegedExceptionAction;
 import java.security.ProtectionDomain;
 import java.util.Collections;
 import java.util.Comparator;
-import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.Objects;
@@ -58,22 +58,32 @@ import org.osgi.util.tracker.ServiceTracker;
 public class Backdoor implements BundleActivator {
   private static final String NOT_A_PERMISSION = "not a permission: ";
 
+  private static final String NOT_A_DOMAIN = "not a domain: ";
+
   @SuppressWarnings({
     "squid:S1068" /* DO NOT CHANGE THIS NAME, the AC debugger is accessing it directly */
   })
   private static volatile Backdoor instance = null;
 
-  private final PropertiesUtil properties = new PropertiesUtil(System.getProperties());
+  private final PropertiesUtil properties;
 
   private volatile ServiceTracker<PermissionService, PermissionService> permServiceTracker = null;
+
+  @VisibleForTesting
+  Backdoor(PropertiesUtil properties) {
+    this.properties = properties;
+  }
+
+  public Backdoor() {
+    this(new PropertiesUtil(System.getProperties()));
+  }
 
   @SuppressWarnings({
     "squid:S2696" /* singleton instance set when initialized so AC debugger can easily find it */
   })
   @Override
   public void start(BundleContext bundleContext) {
-    this.permServiceTracker =
-        new ServiceTracker<>(bundleContext, PermissionService.class.getName(), null);
+    this.permServiceTracker = newServiceTracker(bundleContext);
     this.permServiceTracker.open();
     Backdoor.instance = this;
   }
@@ -156,7 +166,7 @@ public class Backdoor implements BundleActivator {
   public String getDomain(Object domain) {
     try {
       if (!(domain instanceof ProtectionDomain)) {
-        throw new IllegalArgumentException("not a domain: " + domain);
+        throw new IllegalArgumentException(Backdoor.NOT_A_DOMAIN + domain);
       }
       return AccessController.doPrivileged(
           (PrivilegedAction<String>) () -> getDomainLocation((ProtectionDomain) domain));
@@ -197,14 +207,14 @@ public class Backdoor implements BundleActivator {
             (PrivilegedAction<String>)
                 () ->
                     JsonUtils.toJson(
-                        getDomainInfo((ProtectionDomain) obj, (Permission) permission)));
+                        getDomainInfo0((ProtectionDomain) obj, (Permission) permission)));
       } else if (obj instanceof ProtectionDomain[]) {
         return AccessController.doPrivileged(
             (PrivilegedAction<String>)
                 () ->
                     JsonUtils.toJson(
                         Stream.of((ProtectionDomain[]) obj)
-                            .map(d -> getDomainInfo(d, (Permission) permission))
+                            .map(d -> getDomainInfo0(d, (Permission) permission))
                             .collect(Collectors.toList())));
       } else {
         throw new IllegalArgumentException("not a domain or array of domains: " + obj);
@@ -245,7 +255,7 @@ public class Backdoor implements BundleActivator {
       }
       return AccessController.doPrivileged(
           (PrivilegedAction<String>)
-              () -> JsonUtils.toJson(getPermissionStrings((Permission) permission)));
+              () -> JsonUtils.toJson(getPermissionStrings0((Permission) permission)));
     } catch (VirtualMachineError e) {
       throw e;
     } catch (Throwable t) {
@@ -283,7 +293,7 @@ public class Backdoor implements BundleActivator {
       String bundle, Object domain, Object serviceEvent, boolean grant) throws Exception {
     try {
       if (!(domain instanceof ProtectionDomain)) {
-        throw new IllegalArgumentException("not a domain: " + domain);
+        throw new IllegalArgumentException(Backdoor.NOT_A_DOMAIN + domain);
       }
       if (!(serviceEvent instanceof ServiceEvent)) {
         throw new IllegalArgumentException("not a service event: " + serviceEvent);
@@ -291,7 +301,7 @@ public class Backdoor implements BundleActivator {
       return AccessController.doPrivileged(
           (PrivilegedExceptionAction<String>)
               () ->
-                  getServicePermissionInfoAndGrant(
+                  getServicePermissionInfoAndGrant0(
                       bundle, (ProtectionDomain) domain, (ServiceEvent) serviceEvent, grant));
     } catch (PrivilegedActionException e) {
       e.getException().printStackTrace(); // suppress checkstyle:RegexpSingleline|RegexpMultiline
@@ -360,7 +370,7 @@ public class Backdoor implements BundleActivator {
   public boolean hasPermission(Object domain, Object permission) {
     try {
       if (!(domain instanceof ProtectionDomain)) {
-        throw new IllegalArgumentException("not a protection domain: " + domain);
+        throw new IllegalArgumentException(Backdoor.NOT_A_DOMAIN + domain);
       }
       if (!(permission instanceof Permission)) {
         throw new IllegalArgumentException(Backdoor.NOT_A_PERMISSION + permission);
@@ -374,6 +384,12 @@ public class Backdoor implements BundleActivator {
       t.printStackTrace(); // suppress checkstyle:RegexpSingleline|RegexpMultiline
       throw t;
     }
+  }
+
+  @VisibleForTesting
+  ServiceTracker<PermissionService, PermissionService> newServiceTracker(
+      BundleContext bundleContext) {
+    return new ServiceTracker<>(bundleContext, PermissionService.class.getName(), null);
   }
 
   /**
@@ -398,12 +414,12 @@ public class Backdoor implements BundleActivator {
       return null;
     } else if (obj instanceof Bundle) {
       return (Bundle) obj;
-    } else if (obj instanceof BundleReference) {
-      return ((BundleReference) obj).getBundle();
     } else if (obj instanceof BundleWiring) {
       return ((BundleWiring) obj).getBundle();
     } else if (obj instanceof BundleContext) {
       return ((BundleContext) obj).getBundle();
+    } else if (obj instanceof BundleReference) {
+      return ((BundleReference) obj).getBundle();
     } else if (obj instanceof ProtectionDomain) {
       // check if we have a protection domain with Eclipse's permissions
       final PermissionCollection permissions = ((ProtectionDomain) obj).getPermissions();
@@ -465,7 +481,7 @@ public class Backdoor implements BundleActivator {
     return bundle;
   }
 
-  private String getServicePermissionInfoAndGrant(
+  private String getServicePermissionInfoAndGrant0(
       String bundle, ProtectionDomain domain, ServiceEvent serviceEvent, boolean grant)
       throws Exception {
     synchronized (this) {
@@ -473,7 +489,7 @@ public class Backdoor implements BundleActivator {
       final ServicePermission p = new ServicePermission(sr, ServicePermission.GET);
       final String[] objectClass = (String[]) sr.getProperty(Constants.OBJECTCLASS);
       final boolean implies = domain.implies(p);
-      final Set<String> implied = new HashSet<>(12);
+      final Set<String> implied = new LinkedHashSet<>(12);
 
       if (domain.implies(new ServicePermission("*", ServicePermission.GET))) {
         implied.add(getPermissionString(ServicePermission.class, "*", ServicePermission.GET));
@@ -492,7 +508,8 @@ public class Backdoor implements BundleActivator {
           }
         }
       }
-      return JsonUtils.toJson(new ServicePermissionInfo(getPermissionStrings(p), implies, implied));
+      return JsonUtils.toJson(
+          new ServicePermissionInfo(getPermissionStrings0(p), implies, implied));
     }
   }
 
@@ -578,7 +595,7 @@ public class Backdoor implements BundleActivator {
    */
   @SuppressWarnings(
       "squid:S1181" /* letting VirtualMachineErrors bubble out directly, so ok to catch Throwable */)
-  private Set<String> getPermissionStrings(Permission permission) {
+  private Set<String> getPermissionStrings0(Permission permission) {
     if (permission instanceof ServicePermission) {
       try {
         final Field f = ServicePermission.class.getDeclaredField("objectClass");
@@ -619,7 +636,7 @@ public class Backdoor implements BundleActivator {
     return location;
   }
 
-  private DomainInfo getDomainInfo(ProtectionDomain domain, Permission permission) {
+  private DomainInfo getDomainInfo0(ProtectionDomain domain, Permission permission) {
     return new DomainInfo(getDomainLocation(domain), domain.implies(permission));
   }
 }

@@ -15,9 +15,10 @@ package org.codice.acdebugger.impl;
 
 // NOSONAR - squid:S1191 - Using the Java debugger API
 
+import com.google.common.annotations.VisibleForTesting;
 import com.sun.jdi.Bootstrap; // NOSONAR
+import com.sun.jdi.ClassType; // NOSONAR
 import com.sun.jdi.Method; // NOSONAR
-import com.sun.jdi.ReferenceType; // NOSONAR
 import com.sun.jdi.VirtualMachine; // NOSONAR
 import com.sun.jdi.VirtualMachineManager; // NOSONAR
 import com.sun.jdi.connect.AttachingConnector; // NOSONAR
@@ -32,7 +33,6 @@ import com.sun.jdi.event.VMDisconnectEvent; // NOSONAR
 import com.sun.jdi.request.BreakpointRequest; // NOSONAR
 import com.sun.jdi.request.ClassPrepareRequest; // NOSONAR
 import com.sun.jdi.request.EventRequest; // NOSONAR
-import com.sun.jdi.request.EventRequestManager; // NOSONAR
 import java.io.IOException;
 import java.util.Iterator;
 import java.util.List;
@@ -43,21 +43,20 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Stream;
+import javax.annotation.Nullable;
 import org.codice.acdebugger.ACDebugger;
 import org.codice.acdebugger.api.BreakpointProcessor;
 import org.codice.acdebugger.api.Debug;
 
 /** This class provides the main implementation for processing breakpoint requests/callbacks. */
 public class Debugger {
-  private static final String INFO_KEY = "info";
+  @VisibleForTesting static final String INFO_KEY = "info";
 
-  private static final boolean SUSPEND_ALL = false;
+  @VisibleForTesting static final String PORT_KEY = "port";
 
-  private static final String PORT_KEY = "port";
+  @VisibleForTesting static final String HOST_KEY = "hostname";
 
-  private static final String HOST_KEY = "hostname";
-
-  private final ExecutorService executor = Executors.newCachedThreadPool();
+  private final ExecutorService executor;
 
   private final String transport;
 
@@ -79,10 +78,18 @@ public class Debugger {
    * @param port the port to connect to
    */
   public Debugger(String transport, String host, String port) {
+    this(transport, host, port, null, Executors.newCachedThreadPool());
+  }
+
+  @VisibleForTesting
+  Debugger(
+      String transport, String host, String port, @Nullable Debug debug, ExecutorService executor) {
+    this.executor = executor;
     this.transport = transport;
     this.port = port;
     this.host = host;
     this.context = new DebugContext();
+    this.debug = debug;
   }
 
   /**
@@ -163,7 +170,7 @@ public class Debugger {
   /** Attaches this debugger to the VM. */
   @SuppressWarnings("squid:S106" /* this is a console application */)
   public Debugger attach() throws IOException, IllegalConnectorArgumentsException {
-    final VirtualMachineManager vmm = Bootstrap.virtualMachineManager();
+    final VirtualMachineManager vmm = virtualMachineManager();
     final List<AttachingConnector> connectors = vmm.attachingConnectors();
     final AttachingConnector connector =
         connectors
@@ -181,10 +188,12 @@ public class Debugger {
     map.put(PORT_KEY, portArg);
     map.put(HOST_KEY, hostArg);
     this.debug = new DebugImpl(context, connector.attach(map));
-    debug.virtualMachine().setDebugTraceMode(VirtualMachine.TRACE_NONE);
+    final VirtualMachine vm = debug.virtualMachine();
+
+    vm.setDebugTraceMode(VirtualMachine.TRACE_NONE);
     System.out.println(ACDebugger.PREFIX);
     System.out.println(ACDebugger.PREFIX + "Attached to:");
-    Stream.of(debug.virtualMachine().description().split("[\r\n]"))
+    Stream.of(vm.description().split("[\r\n]"))
         .map("  "::concat)
         .map(ACDebugger.PREFIX::concat)
         .forEach(System.out::println);
@@ -257,14 +266,29 @@ public class Debugger {
     executor.awaitTermination(1L, TimeUnit.MINUTES);
   }
 
-  private void add(BreakpointProcessor processor, BreakpointLocation l) throws Exception {
-    final EventRequestManager erm = debug.eventRequestManager();
-    final ReferenceType clazz = debug.reflection().getClass(l.getClassSignature());
+  @VisibleForTesting
+  VirtualMachineManager virtualMachineManager() {
+    return Bootstrap.virtualMachineManager();
+  }
+
+  @VisibleForTesting
+  DebugContext getContext() {
+    return context;
+  }
+
+  @VisibleForTesting
+  Debug getDebug() {
+    return debug;
+  }
+
+  @VisibleForTesting
+  void add(BreakpointProcessor processor, BreakpointLocation l) throws Exception {
+    final ClassType clazz = debug.reflection().getClass(l.getClassSignature());
 
     if (clazz == null) {
       // class is either invalid or has not been loaded yet so let's wait for it before
       // adding a corresponding breakpoint
-      final ClassPrepareRequest cpr = erm.createClassPrepareRequest();
+      final ClassPrepareRequest cpr = debug.eventRequestManager().createClassPrepareRequest();
 
       cpr.putProperty(Debugger.INFO_KEY, new PendingBreakpointInfo(cpr, processor, l));
       cpr.addClassFilter(l.getClassName());
@@ -275,10 +299,7 @@ public class Debugger {
 
       if (request != null) {
         request.putProperty(Debugger.INFO_KEY, new BreakpointInfo(request, processor, l));
-        request.setSuspendPolicy(
-            Debugger.SUSPEND_ALL
-                ? BreakpointRequest.SUSPEND_ALL
-                : BreakpointRequest.SUSPEND_EVENT_THREAD);
+        request.setSuspendPolicy(BreakpointRequest.SUSPEND_EVENT_THREAD);
         request.enable();
       }
     }
@@ -289,7 +310,7 @@ public class Debugger {
     "squid:S1148", /* this is a console application */
     "squid:S106" /* this is a console application */
   })
-  private boolean handleEventSet(EventSet eventSet, EventIterator i, AtomicBoolean resume) {
+  private void handleEventSet(EventSet eventSet, EventIterator i, AtomicBoolean resume) {
     try {
       final Event event = i.next();
 
@@ -297,12 +318,12 @@ public class Debugger {
         System.out.println(ACDebugger.PREFIX);
         System.out.println(ACDebugger.PREFIX + "Attached VM has disconnected");
         context.stop();
-        return true;
+        return;
       }
       final EventRequest request = event.request();
 
       if (request == null) {
-        return true;
+        return;
       }
       final Object oinfo = request.getProperty(Debugger.INFO_KEY);
 
@@ -321,14 +342,12 @@ public class Debugger {
 
           if ((currentMethod == null) || !method.equals(currentMethod.name())) {
             // skip this event as its location doesn't match the expected method
-            return true;
+            return;
           }
         }
         // process the set on a separate thread an let the thread resume it when all done
         resume.set(false);
         executor.execute(new EventSetThread(eventSet, i, event));
-        // break out of processing the event set as we will do that on the separate thread
-        return false;
       }
     } catch (VirtualMachineError e) {
       resume.set(true);
@@ -337,7 +356,6 @@ public class Debugger {
       resume.set(true);
       t.printStackTrace();
     }
-    return true;
   }
 
   /** Used to process a single event set. */
@@ -364,13 +382,13 @@ public class Debugger {
       final String name = thread.getName();
 
       try {
-        if (!context.isRunning()) { // we are done so ignore!
-          return;
-        }
         Event event = null;
         long seq = 0L;
 
         do {
+          if (!context.isRunning()) { // we are done so ignore!
+            return;
+          }
           // start the first event we got above and then continue on with the other
           // events in the set
           event = (event == null) ? initialEvent : i.next();

@@ -17,6 +17,7 @@ import java.net.URL;
 import java.security.CodeSource;
 import java.security.Permission;
 import java.security.ProtectionDomain;
+import java.util.Objects;
 import javax.annotation.Nullable;
 
 /** Defines a Json object to represent domain information. */
@@ -25,13 +26,13 @@ public class DomainInfo {
    * The location from the codebase of the domain as a string (see {@link
    * ProtectionDomain#getCodeSource()} and {@link CodeSource#getLocation()}).
    */
-  @Nullable private String locationString;
+  @Nullable private final String locationString;
 
   /**
    * The {@link java.security.ProtectionDomain#implies(Permission)} result from the requested domain
    * and permission.
    */
-  private boolean implies;
+  private final boolean implies;
 
   public DomainInfo() {
     this.locationString = null;
@@ -46,7 +47,7 @@ public class DomainInfo {
     this.implies = domain.implies(permission);
   }
 
-  public DomainInfo(String locationString, boolean implies) {
+  public DomainInfo(@Nullable String locationString, boolean implies) {
     this.locationString = locationString;
     this.implies = implies;
   }
@@ -58,5 +59,28 @@ public class DomainInfo {
 
   public boolean implies() {
     return implies;
+  }
+
+  @Override
+  public int hashCode() {
+    return Objects.hash(locationString, implies);
+  }
+
+  @Override
+  public boolean equals(Object obj) {
+    if (obj == this) {
+      return true;
+    }
+    if (obj instanceof DomainInfo) {
+      final DomainInfo i = (DomainInfo) obj;
+
+      return (implies == i.implies) && Objects.equals(locationString, i.locationString);
+    }
+    return false;
+  }
+
+  @Override
+  public String toString() {
+    return "DomainInfo[location=" + locationString + ", implies=" + implies + ']';
   }
 }

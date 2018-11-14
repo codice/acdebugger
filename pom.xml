@@ -81,6 +81,23 @@
         <tag>acdebugger-1.6</tag>
     </scm>
 
+    <repositories>
+        <repository>
+            <id>central</id>
+            <name>Central Repository</name>
+            <url>https://repo.maven.apache.org/maven2</url>
+            <layout>default</layout>
+            <snapshots>
+                <enabled>false</enabled>
+            </snapshots>
+        </repository>
+        <repository>
+            <id>codice</id>
+            <name>Codice Repository</name>
+            <url>https://artifacts.codice.org/content/groups/public/</url>
+        </repository>
+    </repositories>
+
     <distributionManagement>
         <!--
           NOTE: The properties snapshots.repository.url and releases.repository.url should be defined in your .m2/settings.xml file.
@@ -444,5 +461,6 @@
         <module>backdoor</module>
         <module>distribution</module>
         <module>docker</module>
+        <module>plugin</module>
     </modules>
 </project>

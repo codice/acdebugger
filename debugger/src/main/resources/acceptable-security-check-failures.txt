@@ -9,3 +9,10 @@
 # we can safely ignore not having access to fonts on the system
 java\.io\.FilePermission ".*", "read"
 org\.apache\.pdfbox\.pdmodel\.font\.FileSystemFontProvider.*
+
+# The static initializer for io.netty.util.NetUtil does attempt to find the file
+# /proc/sys/net/core/somaxconn wether it is running on Windows or Linux. However, if unable to or
+# if the security manager fails (which will be the case on Windows), it catches the exception and
+# continue with a valid default for Windows
+java\.io\.FilePermission ".*somaxconn", "read"
+io\.netty\.util\.NetUtil\$.*:267

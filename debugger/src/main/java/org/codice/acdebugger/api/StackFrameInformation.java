@@ -245,15 +245,11 @@ public class StackFrameInformation {
    * Checks if this location corresponds to a code known to perform a <code>doPrivileged()</code>
    * block in the code on behalf of its caller by re-arranging the access control context.
    *
-   * <p><i>Note:</i> These locations are confirmed to get the current context using <code>
-   * AccessController.getContext()</code> and pass it along as is directly to a <code>
-   * AccessController.doPrivileged()</code> method as opposed to getting it from somewhere else. The
-   * difference is that the context being passed in is from the stack at that point and not from
-   * something unrelated and as such, we can treat it as being part of the stack context of domains
-   * instead of combined domains.
+   * <p><i>Note:</i> This allows us to correct the break location in the stack to account for these
+   * locations' callers.
    *
-   * @return <code>true</code> if this location corresponds to a <code>doPrivileged()</code> block;
-   *     <code>false</code> if not
+   * @return <code>true</code> if this location corresponds to one that calls <code>doPrivileged()
+   *     </code> block on behalf ot the caller; <code>false</code> if not
    */
   public boolean isCallingDoPrivilegedBlockOnBehalfOfCaller() {
     return ((domain == null)

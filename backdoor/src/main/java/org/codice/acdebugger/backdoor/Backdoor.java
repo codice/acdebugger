@@ -60,6 +60,20 @@ public class Backdoor implements BundleActivator {
 
   private static final String NOT_A_DOMAIN = "not a domain: ";
 
+  // getProtectionDomain0() is private in class Class and avoids the security manager check which
+  // would create a recursion which we don't want to handle here. In addition, it returns a fake
+  // domain if none is associated with the class instead of null as we prefer
+  private static final Method GET_PROTECTION_DOMAIN0;
+
+  static {
+    try {
+      GET_PROTECTION_DOMAIN0 = Class.class.getDeclaredMethod("getProtectionDomain0");
+      GET_PROTECTION_DOMAIN0.setAccessible(true);
+    } catch (NoSuchMethodException e) {
+      throw new IllegalStateException(e);
+    }
+  }
+
   @SuppressWarnings({
     "squid:S1068" /* DO NOT CHANGE THIS NAME, the AC debugger is accessing it directly */
   })
@@ -99,8 +113,8 @@ public class Backdoor implements BundleActivator {
 
   /**
    * Gets a bundle location for the given object. The object can be a bundle, a protection domain, a
-   * bundle context, or even a classloader. This methods makes all attempts possible to figure out
-   * the corresponding bundle (in some case based on implementation details).
+   * bundle context, or even a class or a classloader. This methods makes all attempts possible to
+   * figure out the corresponding bundle (in some case based on implementation details).
    *
    * @param obj the object for which to find the corresponding bundle
    * @return the name/location of the corresponding bundle or <code>null</code> if unable to find it
@@ -126,8 +140,8 @@ public class Backdoor implements BundleActivator {
 
   /**
    * Gets a bundle version for the given object. The object can be a bundle, a protection domain, a
-   * bundle context, or even a classloader. This methods makes all attempts possible to figure out
-   * the corresponding bundle (in some case based on implementation details).
+   * bundle context, or even a class or a classloader. This methods makes all attempts possible to
+   * figure out the corresponding bundle (in some case based on implementation details).
    *
    * @param obj the object for which to find the corresponding bundle version
    * @return the version of the corresponding bundle or <code>null</code> if unable to find it
@@ -154,7 +168,7 @@ public class Backdoor implements BundleActivator {
   /**
    * Gets a domain location for the given domain.
    *
-   * @param domain the domain for which to find the corresponding location
+   * @param obj the domain or class or object for which to find the corresponding location
    * @return the corresponding domain location or <code>null</code> if unable to find it or if none
    *     defined
    */
@@ -163,13 +177,9 @@ public class Backdoor implements BundleActivator {
     "squid:S1148" /* don't have access to logger at this stage */
   })
   @Nullable
-  public String getDomain(Object domain) {
+  public String getDomain(Object obj) {
     try {
-      if (!(domain instanceof ProtectionDomain)) {
-        throw new IllegalArgumentException(Backdoor.NOT_A_DOMAIN + domain);
-      }
-      return AccessController.doPrivileged(
-          (PrivilegedAction<String>) () -> getDomainLocation((ProtectionDomain) domain));
+      return AccessController.doPrivileged((PrivilegedAction<String>) () -> getDomainLocation(obj));
     } catch (VirtualMachineError e) {
       throw e;
     } catch (Throwable t) {
@@ -412,16 +422,13 @@ public class Backdoor implements BundleActivator {
 
     if (obj == null) {
       return null;
-    } else if (obj instanceof Bundle) {
-      return (Bundle) obj;
-    } else if (obj instanceof BundleWiring) {
-      return ((BundleWiring) obj).getBundle();
-    } else if (obj instanceof BundleContext) {
-      return ((BundleContext) obj).getBundle();
-    } else if (obj instanceof BundleReference) {
-      return ((BundleReference) obj).getBundle();
+    } else if (obj instanceof Class) {
+      return getBundle0(invoke(obj, Backdoor.GET_PROTECTION_DOMAIN0));
     } else if (obj instanceof ProtectionDomain) {
       // check if we have a protection domain with Eclipse's permissions
+      // must be done checked before the BundleReference chek because otherwise in the case of a
+      // org.eclipse.osgi.internal.loader.ModuleClassLoader.GenerationProtectionDomain, we would
+      // end up referencing the bundle host and not the bundle fragment
       final PermissionCollection permissions = ((ProtectionDomain) obj).getPermissions();
 
       // we cannot reference org.eclipse.osgi.internal.permadmin.BundlePermissions directly as it is
@@ -431,8 +438,17 @@ public class Backdoor implements BundleActivator {
               .getClass()
               .getName()
               .equals("org.eclipse.osgi.internal.permadmin.BundlePermissions")) {
-        bundle = getBundle0(permissions);
+        return getBundle0(permissions);
       }
+    }
+    if (obj instanceof Bundle) {
+      return (Bundle) obj;
+    } else if (obj instanceof BundleWiring) {
+      return ((BundleWiring) obj).getBundle();
+    } else if (obj instanceof BundleContext) {
+      return ((BundleContext) obj).getBundle();
+    } else if (obj instanceof BundleReference) {
+      return ((BundleReference) obj).getBundle();
     } // no else here
     if (bundle == null) { // check if it has a getBundle() method
       bundle = getBundle0(invoke(obj, "getBundle", Bundle.class));
@@ -490,15 +506,16 @@ public class Backdoor implements BundleActivator {
       final String[] objectClass = (String[]) sr.getProperty(Constants.OBJECTCLASS);
       final boolean implies = domain.implies(p);
       final Set<String> implied = new LinkedHashSet<>(12);
+      final ServicePermission permission = new ServicePermission("*", ServicePermission.GET);
 
-      if (domain.implies(new ServicePermission("*", ServicePermission.GET))) {
-        implied.add(getPermissionString(ServicePermission.class, "*", ServicePermission.GET));
+      if (domain.implies(permission)) {
+        implied.add(getPermissionString(permission));
       }
       for (final String c : objectClass) {
-        final String permissionString =
-            getPermissionString(ServicePermission.class, c, ServicePermission.GET);
+        final ServicePermission spermission = new ServicePermission(c, ServicePermission.GET);
+        final String permissionString = getPermissionString(spermission);
 
-        if (domain.implies(new ServicePermission(c, ServicePermission.GET))) {
+        if (domain.implies(spermission)) {
           implied.add(permissionString);
         } else if (grant) {
           final PermissionService permissionService = permServiceTracker.getService();
@@ -514,16 +531,16 @@ public class Backdoor implements BundleActivator {
   }
 
   @Nullable
-  private Object invoke(Object obj, String name, Class<?> returnClass) {
+  private <T> T invoke(Object obj, String name, @Nullable Class<T> returnClass, Object... args) {
     Class<?> c = obj.getClass();
 
     while (c != null) {
       try {
         final Method method = c.getDeclaredMethod(name);
 
-        if (returnClass.isAssignableFrom(method.getReturnType())) {
+        if ((returnClass == null) || returnClass.isAssignableFrom(method.getReturnType())) {
           method.setAccessible(true);
-          return invoke(obj, method);
+          return (T) invoke(obj, method, args);
         }
       } catch (NoSuchMethodException e) { // ignore and check superclass
       }
@@ -533,16 +550,16 @@ public class Backdoor implements BundleActivator {
   }
 
   @Nullable
-  private Object invoke(Object obj, Method method) {
+  private Object invoke(Object obj, Method method, Object... args) {
     try {
-      return method.invoke(obj);
+      return method.invoke(obj, args);
     } catch (IllegalAccessException | InvocationTargetException e) {
       return null;
     }
   }
 
   @Nullable
-  private Object get(Object obj, String name, Class<?> fieldClass) {
+  private <T> T get(Object obj, String name, Class<T> fieldClass) {
     Class<?> c = obj.getClass();
 
     while (c != null) {
@@ -550,7 +567,7 @@ public class Backdoor implements BundleActivator {
         final Field field = c.getDeclaredField(name);
 
         if (fieldClass.isAssignableFrom(field.getType())) {
-          return get(obj, field);
+          return (T) get(obj, field);
         }
       } catch (NoSuchFieldException e) { // ignore and check superclass
       }
@@ -605,7 +622,8 @@ public class Backdoor implements BundleActivator {
 
         if (objectClass != null) {
           return Stream.of(objectClass)
-              .map(n -> getPermissionString(permission.getClass(), n, permission.getActions()))
+              .map(n -> new ServicePermission(n, permission.getActions()))
+              .map(this::getPermissionString)
               .collect(Collectors.toCollection(LinkedHashSet::new));
         }
       } catch (VirtualMachineError e) {
@@ -613,18 +631,46 @@ public class Backdoor implements BundleActivator {
       } catch (Throwable t) { // ignore and continue with standard string representation
       }
     }
-    return Collections.singleton(
-        getPermissionString(permission.getClass(), permission.getName(), permission.getActions()));
+    return Collections.singleton(getPermissionString(permission));
   }
 
-  private String getPermissionString(
-      Class<? extends Permission> clazz, String name, String actions) {
-    if (FilePermission.class.isAssignableFrom(clazz)) {
+  private String getPermissionString(Permission permission) {
+    final String actions = permission.getActions();
+    String name = permission.getName();
+
+    if ((permission instanceof FilePermission)
+        && !name.isEmpty()
+        && !name.equals("<<ALL FILES>>")) {
+      // try to get its canonicalized path instead such that we end up with something absolute
+      // instead of relative since the FilePermission will do that anyway in implies()
+      final String cpath = get(permission, "cpath", String.class);
+
+      if (cpath != null) {
+        final char last = name.charAt(name.length() - 1);
+
+        name = cpath;
+        if ((last == '-') || (last == '*')) {
+          name += last;
+        }
+      }
       name = properties.compress(name);
     }
-    return PermissionUtil.getPermissionString(clazz, name, actions);
+    return PermissionUtil.getPermissionString(permission.getClass(), name, actions);
   }
 
+  @Nullable
+  private String getDomainLocation(@Nullable Object obj) {
+    if (obj == null) {
+      return null;
+    } else if (obj instanceof Class) {
+      return getDomainLocation(invoke(obj, Backdoor.GET_PROTECTION_DOMAIN0));
+    } else if (obj instanceof ProtectionDomain) {
+      return getDomainLocation((ProtectionDomain) obj);
+    }
+    return getDomainLocation(obj.getClass());
+  }
+
+  @Nullable
   private String getDomainLocation(ProtectionDomain domain) {
     final CodeSource src = domain.getCodeSource();
     final URL url = (src != null) ? src.getLocation() : null;

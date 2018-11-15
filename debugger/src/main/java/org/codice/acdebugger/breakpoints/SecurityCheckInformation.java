@@ -397,9 +397,8 @@ class SecurityCheckInformation extends SecuritySolution implements SecurityFailu
       final String nextDomainToFind = contextDomains.get(nextToFind);
 
       if (nextDomainToFind == null) {
-        // the boot domain/bundle-0 implicitly comes before any other domains so it is implicitly
+        // the boot domain/bundle-0 implicitly comes before any other domains so it is "implicitly"
         // already found so skip it
-        continue;
       } else if (contextDomains.indexOf(nextDomainToFind) > lastNextToFind) {
         break;
       }
@@ -444,7 +443,7 @@ class SecurityCheckInformation extends SecuritySolution implements SecurityFailu
             "A DOMAIN IN THE CURRENT ACCESS CONTROL CONTEXT (INDEX: " + nextToFind + ") CANNOT",
             "BE CORRELATED TO ONE COMPUTED FROM THE STACK (INDEX: " + (i + 1) + ")");
         throw new InternalError(
-            "unable to find a correlate a domain in the access control context with those computed from the stack : "
+            "unable to correlate a domain in the access control context with those computed from the stack : "
                 + domain);
       }
     }
@@ -496,21 +495,27 @@ class SecurityCheckInformation extends SecuritySolution implements SecurityFailu
   private int reduceLastFrameToCheckIfDoPrivilegedBlock(
       final StackFrameInformation frame, int index, int last) {
     if (frame.isDoPrivilegedBlock()) {
-      // we check if the frame following the call to doPrivileged() is calling it on behalf of its
-      // own caller. this is a special case to handle situations like
-      // javax.security.auth.Subject:422
-      // the advantage is that we will not report the domains that follows in the stack as
-      // combined domains and we will be able to analyze them for doPrivileged() solutions
+      int increment = 1;
+
       // note: there cannot be a call to doPrivileged() without another frame following that
-      // as such, doing a blind (i+1) is safe and will never exceed stack.size()
-      if (!stack.get(index + 1).isCallingDoPrivilegedBlockOnBehalfOfCaller()) {
-        // found a stack break that we care about, we have to stop after including the next frame
-        // as part of the stack since it is the one calling doPrivileged()
-        if (privilegedStackIndex == -1) {
-          this.privilegedStackIndex = index + 1;
-        }
-        return index + 2; // stop after next
-      } // else - falls-though as if no doPrivileged() call was found
+      // as such, doing a blind (index+increment) is safe and will never exceed stack.size()
+      if (stack.get(index + 1).isCallingDoPrivilegedBlockOnBehalfOfCaller()) {
+        // we check if the frame following the call to doPrivileged() is calling it on behalf of its
+        // own caller. this is a special case to handle situations like
+        // javax.security.auth.Subject:422
+        // we therefore advance the index one more since we want to account for the its caller as
+        // part of the stack break
+        // note: there cannot be a call to one those special cases without another frame following
+        // that
+        // as such, doing a blind increment++ is safe and will never exceed stack.size()
+        increment++;
+      }
+      // found a stack break that we care about, we have to stop after including the next frame
+      // as part of the stack since it is the one calling doPrivileged()
+      if (privilegedStackIndex == -1) {
+        this.privilegedStackIndex = index + increment;
+      }
+      return index + increment + 1; // stop after next
     }
     return last;
   }
@@ -683,7 +688,6 @@ class SecurityCheckInformation extends SecuritySolution implements SecurityFailu
             + "PLEASE REPORT AN ISSUE WITH THE FOLLOWING INFORMATION AND INSTRUCTIONS");
     System.err.println(ACDebugger.PREFIX + "ON HOW TO REPRODUCE IT");
     System.err.println(ACDebugger.PREFIX + SecurityCheckInformation.DOUBLE_LINES);
-    context.dumpTroubleshootingInfo(debug.isOSGi());
     System.err.println(
         ACDebugger.PREFIX + "PERMISSION" + ((permissionInfos.size() == 1) ? ":" : "S:"));
     permissionInfos.forEach(p -> System.err.println(ACDebugger.PREFIX + "    " + p));
@@ -691,6 +695,7 @@ class SecurityCheckInformation extends SecuritySolution implements SecurityFailu
       System.err.println(ACDebugger.PREFIX + "ACCEPTABLE PERMISSIONS: ");
       System.err.println(ACDebugger.PREFIX + "    " + getAcceptablePermissions());
     }
+    context.dumpTroubleshootingInfo(debug.isOSGi());
     System.err.println(ACDebugger.PREFIX + "COMPUTED CONTEXT:");
     System.err.println(
         ACDebugger.PREFIX

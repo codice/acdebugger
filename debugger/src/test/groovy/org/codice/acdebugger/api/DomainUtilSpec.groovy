@@ -54,8 +54,6 @@ class DomainUtilSpec extends ReflectionSpecification {
   def DOMAIN_WITH_NO_LOCATION = MockObjectReference('DOMAIN1', DOMAIN_CLASS, getCodeSource: CODE_SOURCE_WITH_NO_LOCATION)
   @Shared
   def DOMAIN_WITH_NO_CODE_SOURCE = MockObjectReference('DOMAIN1', DOMAIN_CLASS)
-  @Shared
-  def CLASS_OBJ = MockClassObjectReference('CLASS_OBJ', getProtectionDomain0: DOMAIN)
 
   @Shared
   def ARRAY = Mock(ArrayReference)
@@ -72,8 +70,9 @@ class DomainUtilSpec extends ReflectionSpecification {
   def IMPLIES = [true, true, false, true]
 
   @Shared
+  def CLASS_OBJ = MockClassObjectReference('CLASS_OBJ', getProtectionDomain0: DOMAIN)
+  @Shared
   def CLASS = MockClassType('CLASS', 'Lsome/class/ClassName;', classObject: CLASS_OBJ)
-
   @Shared
   def STACKFRAME = Mock(StackFrame, name: 'STACKFRAME') {
     location() >> Mock(Location) {
@@ -113,11 +112,11 @@ class DomainUtilSpec extends ReflectionSpecification {
       'a file domain'                || FILE_DOMAIN                | 1          | 1      | 1            | 1         | 1          || FILE_LOCATION | COMPRESSED_LOCATION
       'a domain with no location'    || DOMAIN_WITH_NO_LOCATION    | 0          | 1      | 1            | 1         | 1          || null          | null
       'a domain with no code source' || DOMAIN_WITH_NO_CODE_SOURCE | 0          | 1      | 1            | 1         | 1          || null          | null
-      'a stack frame'                || STACKFRAME                 | 0          | 2      | 1            | 2         | 1          || LOCATION      | LOCATION
-      'a class reference'            || CLASS                      | 0          | 2      | 1            | 2         | 1          || LOCATION      | LOCATION
-      'a class object'               || CLASS_OBJ                  | 0          | 2      | 1            | 2         | 1          || LOCATION      | LOCATION
+      'a class object'               || CLASS_OBJ                  | 0          | 2      | 1            | 2         | 2          || LOCATION      | LOCATION
+      'a class reference'            || CLASS                      | 0          | 2      | 1            | 3         | 2          || LOCATION      | LOCATION
+      'a stack frame'                || STACKFRAME                 | 0          | 2      | 1            | 3         | 2          || LOCATION      | LOCATION
       'null'                         || null                       | 0          | 0      | 0            | 0         | 0          || null          | null
-      'something unsupported'        || 'abc'                      | 0          | 0      | 1            | 0         | 0          || null          | null
+      'something unsupported'        || 'abc'                      | 0          | 0      | 1            | 1         | 0          || null          | null
   }
 
   @Unroll
@@ -133,7 +132,7 @@ class DomainUtilSpec extends ReflectionSpecification {
       result == location
 
     and:
-      0 * debug.reflection()
+      1 * debug.reflection()
       0 * debug.properties()
       1 * debug.computeIfAbsent(*_) >> cache
       1 * cache.get(obj) >> cached
@@ -141,11 +140,11 @@ class DomainUtilSpec extends ReflectionSpecification {
       0 * cache.put(*_)
 
     where:
-      with_what           | as_what             || obj       | cached                   | location
-      'a domain'          | 'a domain location' || DOMAIN    | 'file://domain/location' | 'file://domain/location'
-      'a domain'          | 'null'              || DOMAIN    | DomainUtil.NULL_DOMAIN   | null
-      'a class reference' | 'a domain location' || CLASS_OBJ | 'file://domain/location' | 'file://domain/location'
-      'a class reference' | 'null'              || CLASS_OBJ | DomainUtil.NULL_DOMAIN   | null
+      with_what        | as_what             || obj       | cached                   | location
+      'a domain'       | 'a domain location' || DOMAIN    | 'file://domain/location' | 'file://domain/location'
+      'a domain'       | 'null'              || DOMAIN    | DomainUtil.NULL_DOMAIN   | null
+      'a class object' | 'a domain location' || CLASS_OBJ | 'file://domain/location' | 'file://domain/location'
+      'a class object' | 'null'              || CLASS_OBJ | DomainUtil.NULL_DOMAIN   | null
   }
 
   @Unroll
@@ -162,7 +161,7 @@ class DomainUtilSpec extends ReflectionSpecification {
       result == location
 
     and:
-      0 * debug.reflection()
+      1 * debug.reflection()
       0 * debug.properties()
       1 * debug.computeIfAbsent(*_) >> cache
       1 * cache.get(DOMAIN) >> null

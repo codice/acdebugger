@@ -13,9 +13,7 @@
  */
 package org.codice.acdebugger.api
 
-
 import com.sun.jdi.Location
-import com.sun.jdi.ReferenceType
 import com.sun.jdi.StackFrame
 import org.codice.acdebugger.ReflectionSpecification
 import org.codice.acdebugger.impl.Backdoor
@@ -100,12 +98,15 @@ class BundleUtilSpec extends ReflectionSpecification {
   def ABSTRACT_SERVICE_REFERENCE_RECIPE$2 = MockObjectReference('ABSTRACT_SERVICE_REFERENCE_RECIPE$2', ABSTRACT_SERVICE_REFERENCE_RECIPE$2_CLASS, getContainerThis: ABSTRACT_SERVICE_REFERENCE_RECIPE)
   @Shared
   def ABSTRACT_SERVICE_REFERENCE_RECIPE$2$1 = MockObjectReference('ABSTRACT_SERVICE_REFERENCE_RECIPE$2$1', ABSTRACT_SERVICE_REFERENCE_RECIPE$2$1_CLASS, getContainerThis: ABSTRACT_SERVICE_REFERENCE_RECIPE$2)
+
+  @Shared
+  def CLASS_OBJ = MockClassObjectReference('CLASS_OBJ', getProtectionDomain0: PROTECTION_DOMAIN_WITH_BUNDLE_PERMISSIONS)
+  @Shared
+  def CLASS = MockClassType('CLASS', 'Lsome/class/ClassName;', classObject: CLASS_OBJ)
   @Shared
   def STACKFRAME = Mock(StackFrame, name: 'STACKFRAME') {
     location() >> Mock(Location) {
-      declaringType() >> Mock(ReferenceType) {
-        classLoader() >> BUNDLE_CLASSLOADER
-      }
+      declaringType() >> CLASS
     }
   }
 
@@ -149,7 +150,9 @@ class BundleUtilSpec extends ReflectionSpecification {
       'a standard protection domain'                               || PROTECTION_DOMAIN                         | 4      | 1         | _         | 1        | _        || BUNDLE_NAME
       'a classloader that has a parent'                            || PROXY_CLASSLOADER                         | 3      | 1         | _         | 1        | _        || BUNDLE_NAME
       'a standard classloader'                                     || CLASSLOADER                               | 1      | 1         | _         | 1        | _        || null
-      'a stack frame'                                              || STACKFRAME                                | 2      | 1         | _         | 1        | _        || BUNDLE_NAME
+      'a class object'                                             || CLASS_OBJ                                 | 4      | 1         | _         | 1        | _        || BUNDLE_NAME
+      'a class reference'                                          || CLASS                                     | 4      | 1         | _         | 1        | _        || BUNDLE_NAME
+      'a stack frame'                                              || STACKFRAME                                | 4      | 1         | _         | 1        | _        || BUNDLE_NAME
       'null'                                                       || null                                      | 0      | 0         | 0         | 0        | 0        || null
       'something unsupported'                                      || 'abc'                                     | 0      | 1         | _         | 0        | 0        || null
   }

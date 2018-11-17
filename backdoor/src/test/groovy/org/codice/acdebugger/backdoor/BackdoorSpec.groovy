@@ -14,6 +14,7 @@
 package org.codice.acdebugger.backdoor
 
 import org.codice.acdebugger.PermissionService
+import org.codice.acdebugger.common.JsonUtils
 import org.codice.acdebugger.common.PropertiesUtil
 import org.codice.junit.DeFinalize
 import org.codice.junit.DeFinalizer
@@ -60,13 +61,13 @@ class BackdoorSpec extends Specification {
   static def LOCATION_URL = new URL(LOCATION)
   static def CODESOURCE = new CodeSource(LOCATION_URL, (Certificate[]) null)
   static def CODESOURCE_NULL_URL = new CodeSource(null, (Certificate[]) null)
-  static def PATH = new File('path').getCanonicalPath()
-  static def PATH_WILDCARD = new File('path').getCanonicalPath() + File.separatorChar + '*'
-  static def PATH_RECURSIVE = new File('path').getCanonicalPath() + File.separatorChar + '-'
-  static def PATH_CHILD_NOTHING_COMPRESSED = new File('path/child').getCanonicalPath()
-  static def PATH_CHILD_CHILD2_SLASH_COMPRESSED = new File('path/child/child2').getCanonicalPath().replace('/', '${/}')
-  static def PATH_CHILD_BACKSLASH_COMPRESSED = new File('path\\child').getCanonicalPath().replace('\\', '${/}')
-  static def PATH_CHILD_CHILDREN_CHILD_COMPRESSED = new File('path/child/children').getCanonicalPath().replace('child', '${/}')
+  static def JSON_PATH = JsonUtils.toJson(new File('path').getCanonicalPath()).replace('\\', '\\\\').replace('"', '\\"')
+  static def JSON_PATH_WILDCARD = JsonUtils.toJson(new File('path').getCanonicalPath() + File.separatorChar + '*').replace('\\', '\\\\').replace('"', '\\"')
+  static def JSON_PATH_RECURSIVE = JsonUtils.toJson(new File('path').getCanonicalPath() + File.separatorChar + '-').replace('\\', '\\\\').replace('"', '\\"')
+  static def JSON_PATH_CHILD_NOTHING_COMPRESSED = JsonUtils.toJson(new File('path/child').getCanonicalPath()).replace('\\', '\\\\').replace('"', '\\"')
+  static def JSON_PATH_CHILD_CHILD2_SLASH_COMPRESSED = JsonUtils.toJson(new File('path/child/child2').getCanonicalPath().replace('/', '${/}')).replace('\\', '\\\\').replace('"', '\\"')
+  static def JSON_PATH_CHILD_BACKSLASH_COMPRESSED = JsonUtils.toJson(new File('path\\child').getCanonicalPath().replace('\\', '${/}')).replace('\\', '\\\\').replace('"', '\\"')
+  static def JSON_PATH_CHILD_CHILDREN_CHILD_COMPRESSED = JsonUtils.toJson(new File('path/child/children').getCanonicalPath().replace('child', '${/}')).replace('\\', '\\\\').replace('"', '\\"')
 
   @Shared
   def BUNDLE = Mock(Bundle) {
@@ -445,9 +446,9 @@ class BackdoorSpec extends Specification {
 
     where:
       with_what                                       || permission                                                          || result
-      'a file permission'                             || new FilePermission('path', 'read,write')                            || "[\"java.io.FilePermission \\\"$PATH\\\", \\\"read,write\\\"\"]"
-      'a file permission with a wildcard path'        || new FilePermission('path' + File.separatorChar + '*', 'read,write') || "[\"java.io.FilePermission \\\"$PATH_WILDCARD\\\", \\\"read,write\\\"\"]"
-      'a file permission with a recursive path'       || new FilePermission('path' + File.separatorChar + '-', 'read,write') || "[\"java.io.FilePermission \\\"$PATH_RECURSIVE\\\", \\\"read,write\\\"\"]"
+      'a file permission'                             || new FilePermission('path', 'read,write')                            || "[\"java.io.FilePermission $JSON_PATH, \\\"read,write\\\"\"]"
+      'a file permission with a wildcard path'        || new FilePermission('path' + File.separatorChar + '*', 'read,write') || "[\"java.io.FilePermission $JSON_PATH_WILDCARD, \\\"read,write\\\"\"]"
+      'a file permission with a recursive path'       || new FilePermission('path' + File.separatorChar + '-', 'read,write') || "[\"java.io.FilePermission $JSON_PATH_RECURSIVE, \\\"read,write\\\"\"]"
       'a property permission'                         || new PropertyPermission('property', 'read')                          || '["java.util.PropertyPermission \\"property\\", \\"read\\""]'
       'a service permission with service name'        || new ServicePermission('name', 'register')                           || '["org.osgi.framework.ServicePermission \\"name\\", \\"register\\""]'
       'a service permission with service id'          || new ServicePermission(SERVICE, 'get')                               || "[\"org.osgi.framework.ServicePermission \\\"(service.id=$SERVICE_ID)\\\", \\\"get\\\"\"]"
@@ -465,10 +466,10 @@ class BackdoorSpec extends Specification {
 
     where:
       slash_is           || slash   | permission                                        || result
-      'not defined'      || null    | new FilePermission('path/child', 'read')          || "[\"java.io.FilePermission \\\"$PATH_CHILD_NOTHING_COMPRESSED\\\", \\\"read\\\"\"]"
-      'defined as /'     || '/'     | new FilePermission('path/child/child2', 'read')   || "[\"java.io.FilePermission \\\"$PATH_CHILD_CHILD2_SLASH_COMPRESSED\\\", \\\"read\\\"\"]"
-      'defined as \\'    || '\\'    | new FilePermission('path\\child', 'read')         || "[\"java.io.FilePermission \\\"$PATH_CHILD_BACKSLASH_COMPRESSED\\\", \\\"read\\\"\"]"
-      'defined as child' || 'child' | new FilePermission('path/child/children', 'read') || "[\"java.io.FilePermission \\\"$PATH_CHILD_CHILDREN_CHILD_COMPRESSED\\\", \\\"read\\\"\"]"
+      'not defined'      || null    | new FilePermission('path/child', 'read')          || "[\"java.io.FilePermission $JSON_PATH_CHILD_NOTHING_COMPRESSED, \\\"read\\\"\"]"
+      'defined as /'     || '/'     | new FilePermission('path/child/child2', 'read')   || "[\"java.io.FilePermission $JSON_PATH_CHILD_CHILD2_SLASH_COMPRESSED, \\\"read\\\"\"]"
+      'defined as \\'    || '\\'    | new FilePermission('path\\child', 'read')         || "[\"java.io.FilePermission $JSON_PATH_CHILD_BACKSLASH_COMPRESSED, \\\"read\\\"\"]"
+      'defined as child' || 'child' | new FilePermission('path/child/children', 'read') || "[\"java.io.FilePermission $JSON_PATH_CHILD_CHILDREN_CHILD_COMPRESSED, \\\"read\\\"\"]"
   }
 
   @Unroll

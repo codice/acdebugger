@@ -261,7 +261,19 @@ public class PermissionUtil {
         reflection.invoke(
             permission, "getName", ReflectionUtil.METHOD_SIGNATURE_NO_ARGS_STRING_RESULT);
 
-    if (isFilePermission) {
+    if (isFilePermission && !name.isEmpty() && !name.equals("<<ALL FILES>>")) {
+      // try to get its canonicalized path instead such that we end up with something absolute
+      // instead of relative since the FilePermission will do that anyway in implies()
+      final String cpath = reflection.get(permission, "cpath", "Ljava/lang/String;");
+
+      if (cpath != null) {
+        final char last = name.charAt(name.length() - 1);
+
+        name = cpath;
+        if ((last == '-') || (last == '*')) {
+          name += last;
+        }
+      }
       name = debug.properties().compress(debug, name);
     }
     return Collections.singleton(

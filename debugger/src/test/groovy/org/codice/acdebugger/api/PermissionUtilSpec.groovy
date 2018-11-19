@@ -26,12 +26,17 @@ class PermissionUtilSpec extends ReflectionSpecification {
   static def LOCATION = 'http://somewhere:1234/projects/home/base/system/SomeLocation.jar'
   static def BUNDLE = 'some.Bundle'
   static def ACTIONS = 'register, listen'
-  static def FILENAME = 'file:/projects/home/base/system/SomeLocation.jar'
+  static def FILENAME = '/projects/home/base/system/SomeLocation/'
+  static def RELATIVE_FILENAME = 'system/SomeLocation/'
+  static def RELATIVE_FILENAME_WITH_RECURSIVE = 'system/SomeLocation/-'
+  static def RELATIVE_FILENAME_WITH_WILDCARD = 'system/SomeLocation/*'
   static def OBJ_CLASS = ['service1', 'service2'] as String[]
   static def SERVICE_PERMISSION_CLASSNAME = 'org.osgi.framework.ServicePermission'
   static def PERMISSION_NAME = 'for.this'
   static def PERMISSION_INFO = "java.security.Permission \"$PERMISSION_NAME\", \"$ACTIONS\"" as String
   static def FILE_PERMISSION_INFO = "java.io.FilePermission \"$FILENAME\", \"$ACTIONS\"" as String
+  static def FILE_PERMISSION_INFO_WITH_RECURSIVE = "java.io.FilePermission \"$FILENAME-\", \"$ACTIONS\"" as String
+  static def FILE_PERMISSION_INFO_WITH_WILDCARD = "java.io.FilePermission \"$FILENAME*\", \"$ACTIONS\"" as String
   static def SERVICE_PERMISSION_INFO = "$SERVICE_PERMISSION_CLASSNAME \"$PERMISSION_NAME\", \"$ACTIONS\"" as String
   static def SERVICE_PERMISSION_INFOS = ["$SERVICE_PERMISSION_CLASSNAME \"service1\", \"$ACTIONS\"" as String, "$SERVICE_PERMISSION_CLASSNAME \"service2\", \"$ACTIONS\"" as String] as Set<String>
   static def SERVICE_PERMISSION_GET_INFO1 = "$SERVICE_PERMISSION_CLASSNAME \"service1\", \"get\"" as String
@@ -64,6 +69,12 @@ class PermissionUtilSpec extends ReflectionSpecification {
   def PERMISSION = MockObjectReference('PERMISSION', PERMISSION_CLASS, getActions: ACTIONS, getName: PERMISSION_NAME)
   @Shared
   def FILE_PERMISSION = MockObjectReference('FILE_PERMISSION', FILE_PERMISSION_CLASS, getActions: ACTIONS, getName: FILENAME)
+  @Shared
+  def FILE_PERMISSION_WITH_CPATH = MockObjectReference('FILE_PERMISSION_WITH_CPATH', FILE_PERMISSION_CLASS, getActions: ACTIONS, getName: RELATIVE_FILENAME, cpath: FILENAME)
+  @Shared
+  def FILE_PERMISSION_WITH_CPATH_WILDCARD = MockObjectReference('FILE_PERMISSION_WITH_CPATH_WILDCARD', FILE_PERMISSION_CLASS, getActions: ACTIONS, getName: RELATIVE_FILENAME_WITH_WILDCARD, cpath: FILENAME)
+  @Shared
+  def FILE_PERMISSION_WITH_CPATH_RECURSIVE = MockObjectReference('FILE_PERMISSION_WITH_CPATH_RECURSIVE', FILE_PERMISSION_CLASS, getActions: ACTIONS, getName: RELATIVE_FILENAME_WITH_RECURSIVE, cpath: FILENAME)
   @Shared
   def SERVICE_PERMISSION = MockObjectReference('SERVICE_PERMISSION', SERVICE_PERMISSION_CLASS, newInstance: [SERVICE_REFERENCE, ACTIONS], getActions: ACTIONS, objectClass: OBJ_CLASS, getName: PERMISSION_NAME)
   @Shared
@@ -437,6 +448,9 @@ class PermissionUtilSpec extends ReflectionSpecification {
       with_what                                       || permission                           || props_count || result
       'a permission'                                  || PERMISSION                           || 0           || [PERMISSION_INFO]
       'a file permission'                             || FILE_PERMISSION                      || 1           || [FILE_PERMISSION_INFO]
+      'a relative file permission'                    || FILE_PERMISSION_WITH_CPATH           || 1           || [FILE_PERMISSION_INFO]
+      'a relative wildcard file permission'           || FILE_PERMISSION_WITH_CPATH_WILDCARD  || 1           || [FILE_PERMISSION_INFO_WITH_WILDCARD]
+      'a relative recursive file permission'          || FILE_PERMISSION_WITH_CPATH_RECURSIVE || 1           || [FILE_PERMISSION_INFO_WITH_RECURSIVE]
       'a service permission that has an object class' || SERVICE_PERMISSION                   || 0           || SERVICE_PERMISSION_INFOS
       'a service permission that has no object class' || SERVICE_PERMISSION_WITH_NO_OBJ_CLASS || 0           || [SERVICE_PERMISSION_INFO]
   }

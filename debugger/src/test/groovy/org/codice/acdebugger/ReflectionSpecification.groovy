@@ -221,6 +221,7 @@ class ReflectionSpecification extends Specification {
     interactWith(mocks, 'get', obj, 'context', 'Lorg/osgi/framework/BundleContext;')
     interactWith(mocks, 'get', obj, 'delegate', 'Ljava/security/ProtectionDomain;')
     interactWith(mocks, 'get', obj, 'objectClass', '[Ljava/lang/String;')
+    interactWith(mocks, 'get', obj, 'cpath', 'Ljava/lang/String;')
 
     interactNew(mocks, obj, clazz.signature(), _)
 

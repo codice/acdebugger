@@ -23,7 +23,8 @@ public class JsonUtils {
     throw new UnsupportedOperationException();
   }
 
-  private static final Gson GSON = new GsonBuilder().serializeNulls().create();
+  private static final Gson GSON =
+      new GsonBuilder().disableHtmlEscaping().serializeNulls().create();
 
   public static String toJson(Object value) {
     return JsonUtils.GSON.toJson(value);

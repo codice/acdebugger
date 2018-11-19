@@ -14,6 +14,7 @@
 package org.codice.acdebugger.backdoor
 
 import org.codice.acdebugger.PermissionService
+import org.codice.acdebugger.common.JsonUtils
 import org.codice.acdebugger.common.PropertiesUtil
 import org.codice.junit.DeFinalize
 import org.codice.junit.DeFinalizer
@@ -60,6 +61,13 @@ class BackdoorSpec extends Specification {
   static def LOCATION_URL = new URL(LOCATION)
   static def CODESOURCE = new CodeSource(LOCATION_URL, (Certificate[]) null)
   static def CODESOURCE_NULL_URL = new CodeSource(null, (Certificate[]) null)
+  static def JSON_PATH = JsonUtils.toJson(new File('path').getCanonicalPath()).replace('\\', '\\\\').replace('"', '\\"')
+  static def JSON_PATH_WILDCARD = JsonUtils.toJson(new File('path').getCanonicalPath() + File.separatorChar + '*').replace('\\', '\\\\').replace('"', '\\"')
+  static def JSON_PATH_RECURSIVE = JsonUtils.toJson(new File('path').getCanonicalPath() + File.separatorChar + '-').replace('\\', '\\\\').replace('"', '\\"')
+  static def JSON_PATH_CHILD_NOTHING_COMPRESSED = JsonUtils.toJson(new File('path/child').getCanonicalPath()).replace('\\', '\\\\').replace('"', '\\"')
+  static def JSON_PATH_CHILD_CHILD2_SLASH_COMPRESSED = JsonUtils.toJson(new File('path/child/child2').getCanonicalPath().replace('/', '${/}')).replace('\\', '\\\\').replace('"', '\\"')
+  static def JSON_PATH_CHILD_BACKSLASH_COMPRESSED = JsonUtils.toJson(new File('path\\child').getCanonicalPath().replace('\\', '${/}')).replace('\\', '\\\\').replace('"', '\\"')
+  static def JSON_PATH_CHILD_CHILDREN_CHILD_COMPRESSED = JsonUtils.toJson(new File('path/child/children').getCanonicalPath().replace('child', '${/}')).replace('\\', '\\\\').replace('"', '\\"')
 
   @Shared
   def BUNDLE = Mock(Bundle) {
@@ -183,6 +191,7 @@ class BackdoorSpec extends Specification {
       'a protection domain with a classloader that has a bundle field' || new ProtectionDomain(null, null, new BundleClassLoader(BUNDLE), null) || LOCATION
       'a classloader that has a parent that has a bundle field'        || new ClassLoaderWithParentBundleClassLoader(BUNDLE)                    || LOCATION
       'a class that has a getBundle() method that fails'               || new GetBundleFailing()                                                || null
+      'a class object loaded from the boot classloader'                || String                                                                || null
   }
 
   @Unroll
@@ -283,6 +292,20 @@ class BackdoorSpec extends Specification {
   }
 
   @Unroll
+  def "test getDomain() with #with_what"() {
+    given:
+      backdoor.start(context)
+
+    expect:
+      backdoor.getDomain(domain) == result
+
+    where:
+      with_what                                    || domain || result
+      'null'                                       || null   || null
+      'an object loaded from the boot classloader' || 'abc'  || null
+  }
+
+  @Unroll
   def "test getDomain() failing with #exception.class.simpleName"() {
     given:
       def properties = Mock(PropertiesUtil)
@@ -303,25 +326,6 @@ class BackdoorSpec extends Specification {
 
     where:
       exception << [RUNTIME_EXCEPTION, VIRTUAL_MACHINE_ERROR]
-  }
-
-  @Unroll
-  def "test getDomain() failing when called with #with_what"() {
-    given:
-      backdoor.start(context)
-
-    when:
-      backdoor.getDomain(domain)
-
-    then:
-      def e = thrown(IllegalArgumentException)
-
-      e.message.contains('not a domain')
-
-    where:
-      with_what                      || domain
-      'null'                         || null
-      'something else than a domain' || 'abc'
   }
 
   @Unroll
@@ -441,12 +445,14 @@ class BackdoorSpec extends Specification {
       backdoor.getPermissionStrings(permission) == result
 
     where:
-      with_what                                       || permission                                          || result
-      'a file permission'                             || new FilePermission('path', 'read,write')            || '["java.io.FilePermission \\"path\\", \\"read,write\\""]'
-      'a property permission'                         || new PropertyPermission('property', 'read')          || '["java.util.PropertyPermission \\"property\\", \\"read\\""]'
-      'a service permission with service name'        || new ServicePermission('name', 'register')           || '["org.osgi.framework.ServicePermission \\"name\\", \\"register\\""]'
-      'a service permission with service id'          || new ServicePermission(SERVICE, 'get')               || "[\"org.osgi.framework.ServicePermission \\\"(service.id\\u003d$SERVICE_ID)\\\", \\\"get\\\"\"]"
-      'a service permission with service objectClass' || new ServicePermission(SERVICE_WITH_OBJCLASS, 'get') || '["org.osgi.framework.ServicePermission \\"name1\\", \\"get\\"","org.osgi.framework.ServicePermission \\"name2\\", \\"get\\""]'
+      with_what                                       || permission                                                          || result
+      'a file permission'                             || new FilePermission('path', 'read,write')                            || "[\"java.io.FilePermission $JSON_PATH, \\\"read,write\\\"\"]"
+      'a file permission with a wildcard path'        || new FilePermission('path' + File.separatorChar + '*', 'read,write') || "[\"java.io.FilePermission $JSON_PATH_WILDCARD, \\\"read,write\\\"\"]"
+      'a file permission with a recursive path'       || new FilePermission('path' + File.separatorChar + '-', 'read,write') || "[\"java.io.FilePermission $JSON_PATH_RECURSIVE, \\\"read,write\\\"\"]"
+      'a property permission'                         || new PropertyPermission('property', 'read')                          || '["java.util.PropertyPermission \\"property\\", \\"read\\""]'
+      'a service permission with service name'        || new ServicePermission('name', 'register')                           || '["org.osgi.framework.ServicePermission \\"name\\", \\"register\\""]'
+      'a service permission with service id'          || new ServicePermission(SERVICE, 'get')                               || "[\"org.osgi.framework.ServicePermission \\\"(service.id=$SERVICE_ID)\\\", \\\"get\\\"\"]"
+      'a service permission with service objectClass' || new ServicePermission(SERVICE_WITH_OBJCLASS, 'get')                 || '["org.osgi.framework.ServicePermission \\"name1\\", \\"get\\"","org.osgi.framework.ServicePermission \\"name2\\", \\"get\\""]'
   }
 
   @Unroll
@@ -460,10 +466,10 @@ class BackdoorSpec extends Specification {
 
     where:
       slash_is           || slash   | permission                                        || result
-      'not defined'      || null    | new FilePermission('path/child', 'read')          || '["java.io.FilePermission \\"path/child\\", \\"read\\""]'
-      'defined as /'     || '/'     | new FilePermission('path/child/child2', 'read')   || '["java.io.FilePermission \\"path${/}child${/}child2\\", \\"read\\""]'
-      'defined as \\'    || '\\'    | new FilePermission('C:\\path\\child', 'read')     || '["java.io.FilePermission \\"C:${/}path${/}child\\", \\"read\\""]'
-      'defined as child' || 'child' | new FilePermission('path/child/children', 'read') || '["java.io.FilePermission \\"path/${/}/${/}ren\\", \\"read\\""]'
+      'not defined'      || null    | new FilePermission('path/child', 'read')          || "[\"java.io.FilePermission $JSON_PATH_CHILD_NOTHING_COMPRESSED, \\\"read\\\"\"]"
+      'defined as /'     || '/'     | new FilePermission('path/child/child2', 'read')   || "[\"java.io.FilePermission $JSON_PATH_CHILD_CHILD2_SLASH_COMPRESSED, \\\"read\\\"\"]"
+      'defined as \\'    || '\\'    | new FilePermission('path\\child', 'read')         || "[\"java.io.FilePermission $JSON_PATH_CHILD_BACKSLASH_COMPRESSED, \\\"read\\\"\"]"
+      'defined as child' || 'child' | new FilePermission('path/child/children', 'read') || "[\"java.io.FilePermission $JSON_PATH_CHILD_CHILDREN_CHILD_COMPRESSED, \\\"read\\\"\"]"
   }
 
   @Unroll
@@ -498,7 +504,7 @@ class BackdoorSpec extends Specification {
       def result = backdoor.getPermissionStrings(permission)
 
     then:
-      result ==~ /\["org\.osgi\.framework\.ServicePermission.* \\"\(service\.id\\u003d223344\)\\", \\"get\\"\"]/
+      result ==~ /\["org\.osgi\.framework\.ServicePermission.* \\"\(service\.id=223344\)\\", \\"get\\"\"]/
 
     and:
       3 * permission.actions >> 'get' >> { throw RUNTIME_EXCEPTION } >> 'get'

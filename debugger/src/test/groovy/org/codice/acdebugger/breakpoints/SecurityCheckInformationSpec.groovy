@@ -289,9 +289,9 @@ class SecurityCheckInformationSpec extends ReflectionSpecification {
       FRAME5
   ]
   @Shared
-  def DOMAINS_WITH_DO_PRIVILEGED = [BOOT_DOMAIN, DOMAIN1, DOMAIN2, DOMAIN2, DOMAIN3, PROXY_DOMAIN, DOMAIN1, COMBINED_DOMAIN]
+  def DOMAINS_WITH_DO_PRIVILEGED = [BOOT_DOMAIN, DOMAIN1, DOMAIN2, DOMAIN2, DOMAIN3, PROXY_DOMAIN, DOMAIN1, DOMAIN4, COMBINED_DOMAIN]
   @Shared
-  def BUNDLES_WITH_DO_PRIVILEGED = [null, BUNDLE1, BUNDLE2, BUNDLE2, BUNDLE3, PROXY_BUNDLE, BUNDLE1, COMBINED_BUNDLE]
+  def BUNDLES_WITH_DO_PRIVILEGED = [null, BUNDLE1, BUNDLE2, BUNDLE2, BUNDLE3, PROXY_BUNDLE, BUNDLE1, BUNDLE4, COMBINED_BUNDLE]
   @Shared
   def ACC_WITH_DO_PRIVILEGED = new AccessControlContextInfo(DOMAINS_WITH_DO_PRIVILEGED, BUNDLES_WITH_DO_PRIVILEGED, 2, PERMISSION, PERMISSION_INFOS, [null, BUNDLE1] as Set<String>)
   @Shared
@@ -313,7 +313,7 @@ class SecurityCheckInformationSpec extends ReflectionSpecification {
       FRAME1A,
       FRAME2A, // <--
       FRAME2B,
-      DO_PRIVILEGED_FRAME, // this stack break is ignored because the doAs() on next frame
+      DO_PRIVILEGED_FRAME,
       DO_AS_FRAME,
       FRAME3,
       FRAME1B,
@@ -321,9 +321,9 @@ class SecurityCheckInformationSpec extends ReflectionSpecification {
       FRAME4 // ----------------
   ]
   @Shared
-  def DOMAINS_WITH_DO_AS = [BOOT_DOMAIN, DOMAIN1, DOMAIN2, DOMAIN2, BOOT_DOMAIN, BOOT_DOMAIN, DOMAIN3, DOMAIN1, COMBINED_DOMAIN]
+  def DOMAINS_WITH_DO_AS = [BOOT_DOMAIN, DOMAIN1, DOMAIN2, DOMAIN2, BOOT_DOMAIN, BOOT_DOMAIN, DOMAIN3, DOMAIN1, DOMAIN4, COMBINED_DOMAIN]
   @Shared
-  def BUNDLES_WITH_DO_AS = [null, BUNDLE1, BUNDLE2, BUNDLE2, null, null, BUNDLE3, BUNDLE1, COMBINED_BUNDLE]
+  def BUNDLES_WITH_DO_AS = [null, BUNDLE1, BUNDLE2, BUNDLE2, null, null, BUNDLE3, BUNDLE1, BUNDLE4, COMBINED_BUNDLE]
   @Shared
   def ACC_WITH_DO_AS = new AccessControlContextInfo(DOMAINS_WITH_DO_AS, BUNDLES_WITH_DO_AS, 2, PERMISSION, PERMISSION_INFOS, [null, BUNDLE1, BUNDLE4] as Set<String>)
   @Shared
@@ -355,6 +355,7 @@ class SecurityCheckInformationSpec extends ReflectionSpecification {
         threadStack() >> stack
         canDoPrivilegedBlocks() >> can_do_privileged_blocks
         reflection() >> REFLECTION
+        isOSGi() >> true
       }
 
     when:
@@ -408,8 +409,8 @@ class SecurityCheckInformationSpec extends ReflectionSpecification {
       'no doPrivileged() calls, no proxies, and no combined domains and failing towards the end of the stack' | ' not'           || STACK                    | ACC1                      | false                    || false      | [BUNDLE1, BUNDLE2, BUNDLE3, BUNDLE4, BUNDLE5]                       | BUNDLE4           | 5                  | -1                     | 3                   | -1             || [SOLUTION6]
       'a class calls doPrivileged()'                                                                          | ''               || STACK_WITH_DO_PRIVILEGED | ACC_WITH_DO_PRIVILEGED    | true                     || false      | [BUNDLE1, BUNDLE2, BUNDLE3, PROXY_BUNDLE, BUNDLE4, COMBINED_BUNDLE] | BUNDLE2           | 2                  | 8                      | 1                   | 5              || [SOLUTION1_WITH_DO_PRIVILEGED, SOLUTION2_WITH_DO_PRIVILEGED, SOLUTION3_WITH_DO_PRIVILEGED, SOLUTION4_WITH_DO_PRIVILEGED, SOLUTION5_WITH_DO_PRIVILEGED, SOLUTION6_WITH_DO_PRIVILEGED]
       'a class calls doPrivileged()'                                                                          | ' not'           || STACK_WITH_DO_PRIVILEGED | ACC_WITH_DO_PRIVILEGED    | false                    || false      | [BUNDLE1, BUNDLE2, BUNDLE3, PROXY_BUNDLE, BUNDLE4, COMBINED_BUNDLE] | BUNDLE2           | 2                  | 8                      | 1                   | 5              || [SOLUTION6_WITH_DO_PRIVILEGED]
-      'a class calls Subject.doAs()'                                                                          | ''               || STACK_WITH_DO_AS         | ACC_WITH_DO_AS            | true                     || false      | [BUNDLE1, BUNDLE2, BUNDLE3, BUNDLE4, COMBINED_BUNDLE]               | BUNDLE2           | 2                  | 9                      | 1                   | 4              || [SOLUTION1_WITH_DO_AS, SOLUTION2_WITH_DO_AS, SOLUTION3_WITH_DO_AS, SOLUTION4_WITH_DO_AS]
-      'a class calls Subject.doAs()'                                                                          | ' not'           || STACK_WITH_DO_AS         | ACC_WITH_DO_AS            | false                    || false      | [BUNDLE1, BUNDLE2, BUNDLE3, BUNDLE4, COMBINED_BUNDLE]               | BUNDLE2           | 2                  | 9                      | 1                   | 4              || [SOLUTION4_WITH_DO_AS]
+      'a class calls Subject.doAs()'                                                                          | ''               || STACK_WITH_DO_AS         | ACC_WITH_DO_AS            | true                     || false      | [BUNDLE1, BUNDLE2, BUNDLE3, BUNDLE4, COMBINED_BUNDLE]               | BUNDLE2           | 2                  | 6                      | 1                   | 3              || [SOLUTION1_WITH_DO_AS, SOLUTION2_WITH_DO_AS, SOLUTION3_WITH_DO_AS, SOLUTION4_WITH_DO_AS]
+      'a class calls Subject.doAs()'                                                                          | ' not'           || STACK_WITH_DO_AS         | ACC_WITH_DO_AS            | false                    || false      | [BUNDLE1, BUNDLE2, BUNDLE3, BUNDLE4, COMBINED_BUNDLE]               | BUNDLE2           | 2                  | 6                      | 1                   | 3              || [SOLUTION4_WITH_DO_AS]
       'a class calls something marked acceptable'                                                             | ''               || STACK_WITH_ACCEPTABLE    | ACC_WITH_ACCEPTABLE       | true                     || true       | [ACCEPTABLE_BUNDLE, BUNDLE2]                                        | ACCEPTABLE_BUNDLE | 1                  | -1                     | 0                   | -1             || []
   }
 
@@ -465,5 +466,39 @@ class SecurityCheckInformationSpec extends ReflectionSpecification {
       def e = thrown(Error)
 
       e.message.contains('unable to find a domain computed from the stack')
+  }
+
+  def "test when recomputing cannot correlate a domain from the access control context with those computed from the stack"() {
+    given:
+      def stack = [
+          ACC_CHECK_FRAME,
+          FRAME1A,
+          new StackFrameInformation(
+              'other-name-found-by-error-for-bundle-2',
+              'some.Class2.doThat0(frame2a:155)',
+              CLASS2,
+              'some.Class2',
+              OBJ2,
+              'instance of some.Class2'
+          ),
+          FRAME3,
+          FRAME1B,
+          FRAME4,
+          FRAME5
+      ]
+      def debug = Mock(Debug) {
+        threadStack() >> stack
+        canDoPrivilegedBlocks() >> true
+        reflection() >> REFLECTION
+      }
+      def acc = new AccessControlContextInfo(DOMAINS, [null, 'what-is-that', BUNDLE2, BUNDLE3, BUNDLE1, BUNDLE4, BUNDLE5], 2, PERMISSION, PERMISSION_INFOS, [null, BUNDLE1] as Set<String>)
+
+    when:
+      new SecurityCheckInformation(debug, acc)
+
+    then:
+      def e = thrown(Error)
+
+      e.message.contains('unable to correlate a domain in the access control context')
   }
 }

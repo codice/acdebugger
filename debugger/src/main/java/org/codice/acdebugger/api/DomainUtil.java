@@ -71,23 +71,14 @@ public class DomainUtil implements LocationUtil {
    */
   @Nullable
   public String get(@Nullable Object obj) {
-    if (obj instanceof StackFrame) {
-      obj = ((StackFrame) obj).location().declaringType().classObject();
-    } else if (obj instanceof ReferenceType) {
-      obj = ((ReferenceType) obj).classObject();
-    }
     if (obj == null) {
       return null;
     }
     final Map<Object, String> cache =
         debug.computeIfAbsent(DomainUtil.DOMAIN_LOCATION_CACHE, ConcurrentHashMap::new);
+    final String location = get0(debug.reflection(), obj, cache);
 
-    if (obj instanceof ClassObjectReference) {
-      return get0((ClassObjectReference) obj, cache);
-    } else if (obj instanceof ObjectReference) {
-      return get0((ObjectReference) obj, cache);
-    }
-    return null;
+    return (location != DomainUtil.NULL_DOMAIN) ? location : null; // identity check here
   }
 
   /**
@@ -116,13 +107,15 @@ public class DomainUtil implements LocationUtil {
       return info;
     }
     final PermissionUtil permissions = debug.permissions();
+    final ReflectionUtil reflection = debug.reflection();
 
     info = new ArrayList<>(domains.size());
     for (int i = 0; i < domains.size(); i++) {
       final ObjectReference domain = (ObjectReference) domains.get(i);
-      final String location = get0(domain, cache);
+      String location = get0(reflection, domain, cache);
       boolean implies;
 
+      location = (location != DomainUtil.NULL_DOMAIN) ? location : null; // identity check here
       if ((i < firstDomainWithoutPermission)
           || (domain == null)
           || (location == null)) { // boot domain always have permissions
@@ -140,64 +133,35 @@ public class DomainUtil implements LocationUtil {
     return info;
   }
 
-  @Nullable
-  private String get0(ClassObjectReference clazz, Map<Object, String> cache) {
-    String location = cache.get(clazz);
-
-    if (location != null) {
-      return (location != DomainUtil.NULL_DOMAIN) ? location : null;
-    }
-    // getProtectionDomain0() is private in class Class and avoids the security manager check which
-    // would create a recursion which we don't want to handle here. In addition, it returns a fake
-    // domain if none is associated with the class
-    location =
-        get0(
-            (ObjectReference)
-                debug
-                    .reflection()
-                    .invoke(clazz, "getProtectionDomain0", "()Ljava/security/ProtectionDomain;"),
-            cache);
-    cache.put(clazz, (location != null) ? location : DomainUtil.NULL_DOMAIN);
-    return location;
-  }
-
-  @Nullable
-  private String get0(ObjectReference domain, Map<Object, String> cache) {
-    if (domain == null) {
-      return null;
-    }
-    String location = cache.get(domain);
-
-    if (location == null) {
-      location = getFromBackdoor(domain, cache);
-    }
-    if (location != null) {
-      return (location != DomainUtil.NULL_DOMAIN) ? location : null;
-    }
-    final ReflectionUtil reflection = debug.reflection();
-
-    location =
-        reflection.toString(
-            reflection.invokeAndReturnNullIfNotFound(
-                reflection.invoke(domain, "getCodeSource", "()Ljava/security/CodeSource;"),
-                "getLocation",
-                "()Ljava/net/URL;"));
-    if (location != null) {
-      if (location.regionMatches(true, 0, "file:/", 0, 6)) {
-        location = debug.properties().compress(debug, location);
-      }
-      cache.put(domain, location);
-    } else {
-      cache.put(domain, DomainUtil.NULL_DOMAIN);
-    }
-    return location;
-  }
-
-  @Nullable
   @SuppressWarnings({
     "squid:S1181", /* letting VirtualMachineErrors bubble out directly, so ok to catch Throwable */
     "squid:S1148" /* this is a console application */
   })
+  @Nullable
+  private String getFromBackdoor(ObjectReference obj, Map<Object, String> cache) {
+    try {
+      String location = debug.backdoor().getDomain(debug, obj);
+
+      if (location == null) {
+        location = DomainUtil.NULL_DOMAIN;
+      }
+      cache.put(obj, location);
+      return location;
+    } catch (VirtualMachineError e) {
+      throw e;
+    } catch (IllegalStateException e) { // ignore and continue the long way
+    } catch (Throwable t) {
+      // ignore and continue the long way which might require more calls to the process
+      t.printStackTrace();
+    }
+    return null;
+  }
+
+  @SuppressWarnings({
+    "squid:S1181", /* letting VirtualMachineErrors bubble out directly, so ok to catch Throwable */
+    "squid:S1148" /* this is a console application */
+  })
+  @Nullable
   private List<DomainInfo> getFromBackdoor(
       ArrayReference domainsRef,
       List<Value> domains,
@@ -223,26 +187,62 @@ public class DomainUtil implements LocationUtil {
   }
 
   @Nullable
-  @SuppressWarnings({
-    "squid:S1181", /* letting VirtualMachineErrors bubble out directly, so ok to catch Throwable */
-    "squid:S1148" /* this is a console application */
-  })
-  private String getFromBackdoor(ObjectReference domain, Map<Object, String> cache) {
-    try {
-      String location = debug.backdoor().getDomain(debug, domain);
-
-      if (location == null) {
-        location = DomainUtil.NULL_DOMAIN;
-      }
-      cache.put(domain, location);
-      return location;
-    } catch (VirtualMachineError e) {
-      throw e;
-    } catch (IllegalStateException e) { // ignore and continue the long way
-    } catch (Throwable t) {
-      // ignore and continue the long way which might require more calls to the process
-      t.printStackTrace();
+  private String get0(ReflectionUtil reflection, @Nullable Object obj, Map<Object, String> cache) {
+    if (obj == null) {
+      return null;
     }
-    return null;
+    String location = cache.get(obj);
+
+    if (location != null) {
+      return location;
+    } else if (obj instanceof StackFrame) {
+      // cannot cache stack frames as calling a single method invalidates it including its hashCode
+      return get0(reflection, ((StackFrame) obj).location().declaringType().classObject(), cache);
+    } else if (obj instanceof ReferenceType) {
+      return get0(reflection, ((ReferenceType) obj).classObject(), cache);
+    } else if (!(obj instanceof ObjectReference)) {
+      return null;
+    }
+    location = getFromBackdoor((ObjectReference) obj, cache);
+    if (location != null) {
+      return location;
+    } else if (obj instanceof ClassObjectReference) {
+      return getFromAssociatedProtectionDomain(reflection, (ClassObjectReference) obj, cache);
+    }
+    // if we get here then it has to be a protection domain as we do not support anything else
+    location =
+        reflection.toString(
+            reflection.invokeAndReturnNullIfNotFound(
+                reflection.invoke(
+                    (ObjectReference) obj, "getCodeSource", "()Ljava/security/CodeSource;"),
+                "getLocation",
+                "()Ljava/net/URL;"));
+    if (location != null) {
+      if (location.regionMatches(true, 0, "file:/", 0, 6)) {
+        location = debug.properties().compress(debug, location);
+      }
+      cache.put(obj, location);
+    } else {
+      cache.put(obj, DomainUtil.NULL_DOMAIN);
+    }
+    return location;
+  }
+
+  @Nullable
+  private String getFromAssociatedProtectionDomain(
+      ReflectionUtil reflection, ClassObjectReference clazz, Map<Object, String> cache) {
+    // getProtectionDomain0() is private in class Class and avoids the security manager check which
+    // would create a recursion which we don't want to handle here. In addition, it returns a fake
+    // domain if none is associated with the class instead of null as we prefer
+    final String location =
+        get0(
+            reflection,
+            (ObjectReference)
+                reflection.invoke(
+                    clazz, "getProtectionDomain0", "()Ljava/security/ProtectionDomain;"),
+            cache);
+
+    cache.put(clazz, (location != null) ? location : DomainUtil.NULL_DOMAIN);
+    return location;
   }
 }

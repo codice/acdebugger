@@ -13,13 +13,10 @@
  */
 package org.codice.acdebugger.breakpoints;
 
-// NOSONAR - squid:S1191 - Using the Java debugger API
-
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Charsets;
 import com.google.common.io.LineProcessor;
 import com.google.common.io.Resources;
-import com.sun.jdi.ObjectReference; // NOSONAR
 import java.io.IOError;
 import java.io.IOException;
 import java.security.Permission;
@@ -397,7 +394,12 @@ class SecurityCheckInformation extends SecuritySolution implements SecurityFailu
     int nextToFind = lastNextToFind;
 
     while (++nextToFind < size) {
-      if (contextDomains.indexOf(contextDomains.get(nextToFind)) > lastNextToFind) {
+      final String nextDomainToFind = contextDomains.get(nextToFind);
+
+      if (nextDomainToFind == null) {
+        // the boot domain/bundle-0 implicitly comes before any other domains so it is "implicitly"
+        // already found so skip it
+      } else if (contextDomains.indexOf(nextDomainToFind) > lastNextToFind) {
         break;
       }
     }
@@ -411,25 +413,37 @@ class SecurityCheckInformation extends SecuritySolution implements SecurityFailu
     // 'domains' doesn't have nulls and doesn't have duplicates
     final int size = contextDomains.size();
     // skip null at the top since those are not added to 'domains'
-    int nextToFind = (contextDomains.get(0) == null) ? 1 : 0;
+    int nextToFind = findNextToFindNotAlreadyFound(0, contextDomains);
 
-    for (final String domain : domains) {
+    for (int i = 0; i < domains.size(); i++) {
+      final String domain = domains.get(i);
       // the computed domain should be found at or before 'next' otherwise, we just computed a
       // domain from a frame that doesn't match a domain we got from the access control context
       final int index = contextDomains.indexOf(domain);
 
-      if (index < nextToFind) { // we already found that domain so continue
-      } else if (index == nextToFind) { // we found the next domain we were looking for
-        nextToFind = findNextToFindNotAlreadyFound(nextToFind, contextDomains);
-      } else {
+      if (index == -1) {
         // this means that we computed a domain from the stack that we cannot find in the
         // access control context. this is a bug and we need to figure out what we missed
         dumpTroubleshootingInfo(
             "AN ERROR OCCURRED WHILE ATTEMPTING TO ANALYZE THE SECURITY EXCEPTION,",
-            "A DOMAIN WE COMPUTED FROM THE STACK CANNOT BE FOUND IN THE CURRENT",
-            "ACCESS CONTROL CONTEXT (" + domain + ')');
+            "A DOMAIN WE COMPUTED FROM THE STACK (INDEX: " + (i + 1) + ") CANNOT BE FOUND IN THE",
+            "CURRENT ACCESS CONTROL CONTEXT (STARTING AT INDEX: " + nextToFind + ")");
         throw new InternalError(
             "unable to find a domain computed from the stack in the access control context: "
+                + domain);
+      } else if (index < nextToFind) { // we already found that domain so continue
+      } else if (index == nextToFind) { // we found the next domain we were looking for
+        nextToFind = findNextToFindNotAlreadyFound(nextToFind, contextDomains);
+      } else {
+        // this means that the next domain in the access control context we need to find in our
+        // computed domain list cannot be found. this is a bug and we need to figure out what we
+        // missed
+        dumpTroubleshootingInfo(
+            "AN ERROR OCCURRED WHILE ATTEMPTING TO ANALYZE THE SECURITY EXCEPTION,",
+            "A DOMAIN IN THE CURRENT ACCESS CONTROL CONTEXT (INDEX: " + nextToFind + ") CANNOT",
+            "BE CORRELATED TO ONE COMPUTED FROM THE STACK (INDEX: " + (i + 1) + ")");
+        throw new InternalError(
+            "unable to correlate a domain in the access control context with those computed from the stack : "
                 + domain);
       }
     }
@@ -481,21 +495,27 @@ class SecurityCheckInformation extends SecuritySolution implements SecurityFailu
   private int reduceLastFrameToCheckIfDoPrivilegedBlock(
       final StackFrameInformation frame, int index, int last) {
     if (frame.isDoPrivilegedBlock()) {
-      // we check if the frame following the call to doPrivileged() is calling it on behalf of its
-      // own caller. this is a special case to handle situations like
-      // javax.security.auth.Subject:422
-      // the advantage is that we will not report the domains that follows in the stack as
-      // combined domains and we will be able to analyze them for doPrivileged() solutions
+      int increment = 1;
+
       // note: there cannot be a call to doPrivileged() without another frame following that
-      // as such, doing a blind (i+1) is safe and will never exceed stack.size()
-      if (!stack.get(index + 1).isCallingDoPrivilegedBlockOnBehalfOfCaller()) {
-        // found a stack break that we care about, we have to stop after including the next frame
-        // as part of the stack since it is the one calling doPrivileged()
-        if (privilegedStackIndex == -1) {
-          this.privilegedStackIndex = index + 1;
-        }
-        return index + 2; // stop after next
-      } // else - falls-though as if no doPrivileged() call was found
+      // as such, doing a blind (index+increment) is safe and will never exceed stack.size()
+      if (stack.get(index + 1).isCallingDoPrivilegedBlockOnBehalfOfCaller()) {
+        // we check if the frame following the call to doPrivileged() is calling it on behalf of its
+        // own caller. this is a special case to handle situations like
+        // javax.security.auth.Subject:422
+        // we therefore advance the index one more since we want to account for the its caller as
+        // part of the stack break
+        // note: there cannot be a call to one those special cases without another frame following
+        // that
+        // as such, doing a blind increment++ is safe and will never exceed stack.size()
+        increment++;
+      }
+      // found a stack break that we care about, we have to stop after including the next frame
+      // as part of the stack since it is the one calling doPrivileged()
+      if (privilegedStackIndex == -1) {
+        this.privilegedStackIndex = index + increment;
+      }
+      return index + increment + 1; // stop after next
     }
     return last;
   }
@@ -660,8 +680,6 @@ class SecurityCheckInformation extends SecuritySolution implements SecurityFailu
 
   @SuppressWarnings("squid:S106" /* this is a console application */)
   private void dumpTroubleshootingInfo(String... msg) {
-    final ObjectReference currentDomainValue = context.getCurrentDomainReference();
-
     System.err.println(ACDebugger.PREFIX);
     System.err.println(ACDebugger.PREFIX + SecurityCheckInformation.DOUBLE_LINES);
     Stream.of(msg).map(ACDebugger.PREFIX::concat).forEach(System.err::println);
@@ -671,22 +689,26 @@ class SecurityCheckInformation extends SecuritySolution implements SecurityFailu
     System.err.println(ACDebugger.PREFIX + "ON HOW TO REPRODUCE IT");
     System.err.println(ACDebugger.PREFIX + SecurityCheckInformation.DOUBLE_LINES);
     System.err.println(
-        ACDebugger.PREFIX + "CURRENT DOMAIN CLASS: " + currentDomainValue.type().name());
-    System.err.println(ACDebugger.PREFIX + "CURRENT DOMAIN: " + currentDomainValue);
-    System.err.println(
-        ACDebugger.PREFIX + "LOCAL 'i' VARIABLE: " + context.getCurrentDomainIndex());
-    System.err.println(ACDebugger.PREFIX + "ACCESS CONTROL CONTEXT:");
-    context.getDomains().forEach(b -> System.err.println(ACDebugger.PREFIX + "  " + b));
-    System.err.println(ACDebugger.PREFIX + "CONTEXT:");
+        ACDebugger.PREFIX + "PERMISSION" + ((permissionInfos.size() == 1) ? ":" : "S:"));
+    permissionInfos.forEach(p -> System.err.println(ACDebugger.PREFIX + "    " + p));
+    if (isAcceptable()) {
+      System.err.println(ACDebugger.PREFIX + "ACCEPTABLE PERMISSIONS: ");
+      System.err.println(ACDebugger.PREFIX + "    " + getAcceptablePermissions());
+    }
+    context.dumpTroubleshootingInfo(debug.isOSGi());
+    System.err.println(ACDebugger.PREFIX + "COMPUTED CONTEXT:");
     System.err.println(
         ACDebugger.PREFIX
             + "  "
             + (debug.isOSGi() ? StackFrameInformation.BUNDLE0 : StackFrameInformation.BOOT_DOMAIN));
     for (int i = 0; i < domains.size(); i++) {
+      final String domain = domains.get(i);
+
       System.err.println(
           ACDebugger.PREFIX
               + "  "
-              + domains.get(i)
+              + (context.isPrivileged(domain) ? "" : "*")
+              + domain
               + (((i >= combinedDomainsStartIndex) && (combinedDomainsStartIndex != -1))
                   ? " (combined)"
                   : ""));
@@ -695,7 +717,10 @@ class SecurityCheckInformation extends SecuritySolution implements SecurityFailu
     final int size = stack.size();
 
     for (int i = 0; i < size; i++) {
-      System.err.println(ACDebugger.PREFIX + "  at " + stack.get(i));
+      System.err.println(
+          ACDebugger.PREFIX
+              + "  at "
+              + stack.get(i).toString(debug.isOSGi(), context.getPrivilegedDomains()));
       if ((privilegedStackIndex != -1) && (i == privilegedStackIndex)) {
         System.err.println(
             ACDebugger.PREFIX + "    ----------------------------------------------------------");

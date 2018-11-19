@@ -16,6 +16,7 @@ package org.codice.acdebugger.api;
 // NOSONAR - squid:S1191 - Using the Java debugger API
 
 import com.google.common.annotations.VisibleForTesting;
+import com.sun.jdi.ClassObjectReference; // NOSONAR
 import com.sun.jdi.ObjectReference; // NOSONAR
 import com.sun.jdi.ReferenceType; // NOSONAR
 import com.sun.jdi.StackFrame; // NOSONAR
@@ -69,7 +70,9 @@ public class BundleUtil implements LocationUtil {
     if (obj == null) {
       return null;
     }
-    final String bundle = get0(debug.reflection(), obj);
+    final Map<Object, String> cache =
+        debug.computeIfAbsent(BundleUtil.BUNDLE_INFO_CACHE, ConcurrentHashMap::new);
+    final String bundle = get0(debug.reflection(), obj, cache);
 
     return (bundle != BundleUtil.NULL_BUNDLE) ? bundle : null; // identity check here
   }
@@ -101,11 +104,12 @@ public class BundleUtil implements LocationUtil {
   /**
    * Gets a bundle location for the given object. The object can be a {@link StackFrame} or an
    * {@link ObjectReference} representing a bundle, a protection domain, a bundle context, or even a
-   * classloader. This methods makes all attempts possible to figure out the corresponding bundle
-   * based on implementation details.
+   * class or a classloader. This methods makes all attempts possible to figure out the
+   * corresponding bundle based on implementation details.
    *
    * @param reflection the reflection utility
    * @param obj the object for which to find the corresponding bundle.
+   * @param cache the cache to look into for a bundle name or to cache new values
    * @return the name/location of the corresponding bundle, {@link #NULL_BUNDLE} if the
    *     corresponding bundle could not be found in previous attempts (could be because it is
    *     bundle-0), or <code>null</code> if unable to find it
@@ -114,28 +118,30 @@ public class BundleUtil implements LocationUtil {
   @SuppressWarnings({
     "squid:S3776", /* Recursive logic and simple enough to not warrant decomposing more */
   })
-  private String get0(ReflectionUtil reflection, @Nullable Object obj) {
+  private String get0(ReflectionUtil reflection, @Nullable Object obj, Map<Object, String> cache) {
     // NOTE: The logic here should be kept in sync with the logic in
     // org.codice.acdebugger.backdoor.Backdoor
     if (obj == null) {
       return null;
     }
     // start by checking our cache
-    final Map<Object, String> cache =
-        debug.computeIfAbsent(BundleUtil.BUNDLE_INFO_CACHE, ConcurrentHashMap::new);
     String bundle = cache.get(obj);
 
     if (bundle != null) {
       return bundle;
     } else if (obj instanceof StackFrame) {
       // cannot cache stack frames as calling a single method invalidates it including its hashCode
-      return get0(reflection, ((StackFrame) obj).location().declaringType().classLoader());
+      return get0(reflection, ((StackFrame) obj).location().declaringType().classObject(), cache);
+    } else if (obj instanceof ReferenceType) {
+      return get0(reflection, ((ReferenceType) obj).classObject(), cache);
     } else if (!(obj instanceof ObjectReference)) {
       return null;
     }
     bundle = getFromBackdoor(obj, cache); // first try via the backdoor
     if (bundle != null) {
-      return (bundle != BundleUtil.NULL_BUNDLE) ? bundle : null;
+      return bundle;
+    } else if (obj instanceof ClassObjectReference) {
+      return getFromAssociatedProtectionDomain(reflection, (ClassObjectReference) obj, cache);
     }
     final ObjectReference ref = (ObjectReference) obj;
     final ReferenceType type = ref.referenceType();
@@ -153,16 +159,20 @@ public class BundleUtil implements LocationUtil {
                   reflection.invoke(
                       ref, "getBundleLoader", "()Lorg/eclipse/osgi/internal/loader/BundleLoader;"),
                   "getWiring",
-                  "()Lorg/eclipse/osgi/container/ModuleWiring;"));
+                  "()Lorg/eclipse/osgi/container/ModuleWiring;"),
+              cache);
     } else if (reflection.isAssignableFrom("Ljava/security/ProtectionDomain;", type)) {
       // check if we have a protection domain with Eclipse's permissions
+      // must be done checked before the getBundle() check because otherwise in the case of a
+      // org.eclipse.osgi.internal.loader.ModuleClassLoader.GenerationProtectionDomain, we would
+      // end up referencing the bundle host and not the bundle fragment
       final ObjectReference permissions =
           reflection.invokeAndReturnNullIfNotFound(
               ref, "getPermissions", "()Ljava/security/PermissionCollection;");
 
       if (reflection.isInstance(
           "Lorg/eclipse/osgi/internal/permadmin/BundlePermissions;", permissions)) {
-        bundle = get0(reflection, permissions);
+        bundle = get0(reflection, permissions, cache);
       }
     } // no else here
     if (bundle == null) { // check if we have a getBundle() method
@@ -172,19 +182,22 @@ public class BundleUtil implements LocationUtil {
           get0(
               reflection,
               reflection.invokeAndReturnNullIfNotFound(
-                  ref, "getBundle", "()Lorg/osgi/framework/Bundle;"));
+                  ref, "getBundle", "()Lorg/osgi/framework/Bundle;"),
+              cache);
     }
     if (bundle == null) { // check if we have a getBundleContext() method
       bundle =
           get0(
               reflection,
               reflection.invokeAndReturnNullIfNotFound(
-                  ref, "getBundleContext", "()Lorg/osgi/framework/BundleContext;"));
+                  ref, "getBundleContext", "()Lorg/osgi/framework/BundleContext;"),
+              cache);
     }
     if (bundle == null) { // check if we have a bundle field
       // useful for org.apache.felix.cm.impl.helper.BaseTracker$CMProtectionDomain,
       // which does not expose the bundle in any other ways
-      bundle = get0(reflection, reflection.get(ref, "bundle", "Lorg/osgi/framework/Bundle;"));
+      bundle =
+          get0(reflection, reflection.get(ref, "bundle", "Lorg/osgi/framework/Bundle;"), cache);
     }
     if (bundle == null) { // check if we have a bundle context field
       // useful for org.apache.aries.blueprint.container.BlueprintProtectionDomain
@@ -192,17 +205,24 @@ public class BundleUtil implements LocationUtil {
       bundle =
           get0(
               reflection,
-              reflection.get(ref, "bundleContext", "Lorg/osgi/framework/BundleContext;"));
+              reflection.get(ref, "bundleContext", "Lorg/osgi/framework/BundleContext;"),
+              cache);
     }
     if (bundle == null) { // check if we have a context field
       // useful for org.eclipse.osgi.internal.serviceregistry.FilteredServiceListener
       bundle =
-          get0(reflection, reflection.get(ref, "context", "Lorg/osgi/framework/BundleContext;"));
+          get0(
+              reflection,
+              reflection.get(ref, "context", "Lorg/osgi/framework/BundleContext;"),
+              cache);
     }
     if (bundle == null) { // check if it has a delegate protection domain via a delegate field
       // useful for org.apache.karaf.util.jaas.JaasHelper$DelegatingProtectionDomain
       bundle =
-          get0(reflection, reflection.get(ref, "delegate", "Ljava/security/ProtectionDomain;"));
+          get0(
+              reflection,
+              reflection.get(ref, "delegate", "Ljava/security/ProtectionDomain;"),
+              cache);
     }
     if (bundle == null) {
       // for org.apache.aries.blueprint.container.AbstractServiceReferenceRecipe
@@ -211,13 +231,14 @@ public class BundleUtil implements LocationUtil {
           get0(
               reflection,
               reflection.invokeAndReturnNullIfNotFound(
-                  ref, "getBundleContextForServiceLookup", "()Lorg/osgi/framework/BundleContext;"));
+                  ref, "getBundleContextForServiceLookup", "()Lorg/osgi/framework/BundleContext;"),
+              cache);
     }
     if (bundle == null) {
       // for org.apache.aries.blueprint.container.AbstractServiceReferenceRecipe$2$1
       // or org.apache.aries.blueprint.container.AbstractServiceReferenceRecipe$2
       // we shall look at the container class and figure it out from there
-      bundle = get0(reflection, reflection.getContainerThis(ref));
+      bundle = get0(reflection, reflection.getContainerThis(ref), cache);
     }
     if (bundle == null) { // check if it has a classloader via a getClassLoader() method
       // useful if it is a straight java.security.ProtectionDomain
@@ -225,7 +246,8 @@ public class BundleUtil implements LocationUtil {
           get0(
               reflection,
               reflection.invokeAndReturnNullIfNotFound(
-                  ref, "getClassLoader", "()Ljava/lang/ClassLoader;"));
+                  ref, "getClassLoader", "()Ljava/lang/ClassLoader;"),
+              cache);
     }
     if (bundle == null) {
       // for classloaders, check their parent classloader via a getParent() method
@@ -234,9 +256,27 @@ public class BundleUtil implements LocationUtil {
           get0(
               reflection,
               reflection.invokeAndReturnNullIfNotFound(
-                  ref, "getParent", "()Ljava/lang/ClassLoader;"));
+                  ref, "getParent", "()Ljava/lang/ClassLoader;"),
+              cache);
     }
     cache.put(obj, (bundle != null) ? bundle : BundleUtil.NULL_BUNDLE);
+    return bundle;
+  }
+
+  private String getFromAssociatedProtectionDomain(
+      ReflectionUtil reflection, ClassObjectReference clazz, Map<Object, String> cache) {
+    // getProtectionDomain0() is private in class Class and avoids the security manager check which
+    // would create a recursion which we don't want to handle here. In addition, it returns a fake
+    // domain if none is associated with the class instead of null as we prefer
+    final String bundle =
+        get0(
+            reflection,
+            (ObjectReference)
+                reflection.invoke(
+                    clazz, "getProtectionDomain0", "()Ljava/security/ProtectionDomain;"),
+            cache);
+
+    cache.put(clazz, (bundle != null) ? bundle : BundleUtil.NULL_BUNDLE);
     return bundle;
   }
 }

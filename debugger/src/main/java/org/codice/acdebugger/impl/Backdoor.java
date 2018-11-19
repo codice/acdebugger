@@ -157,8 +157,8 @@ public class Backdoor {
 
   /**
    * Gets a bundle location for the given object. The object can be a bundle, a protection domain, a
-   * bundle context, or even a classloader. This methods makes all attempts possible to figure out
-   * the corresponding bundle (in some case based on implementation details).
+   * bundle context, or even a class or a classloader. This methods makes all attempts possible to
+   * figure out the corresponding bundle (in some case based on implementation details).
    *
    * @param debug the current debug information
    * @param obj the object for which to find the corresponding bundle
@@ -197,17 +197,17 @@ public class Backdoor {
    * Gets a domain location for the given domain.
    *
    * @param debug the current debug information
-   * @param domain the domain for which to find the corresponding location
+   * @param obj the domain or class or object for which to find the corresponding location
    * @return the corresponding domain location or <code>null</code> if unable to find it or if none
    *     defined
    */
   @Nullable
-  public synchronized String getDomain(Debug debug, ObjectReference domain) {
+  public synchronized String getDomain(Debug debug, ObjectReference obj) {
     findBackdoor(debug); // make sure the backdoor is enabled
     if (getDomain == null) {
       throw new IllegalStateException("getDomain() is not supported by the backdoor");
     }
-    return debug.reflection().invoke(backdoorReference, getDomain, domain);
+    return debug.reflection().invoke(backdoorReference, getDomain, obj);
   }
 
   /**

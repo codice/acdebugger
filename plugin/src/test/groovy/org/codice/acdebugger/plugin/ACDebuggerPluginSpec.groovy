@@ -56,7 +56,7 @@ class ACDebuggerPluginSpec extends Specification {
                         parameter('--reconnect', reconnect), parameter('--continuous', continuous), parameter('--admin', admin),
                         parameter('--debug', debug), parameter('--service', service), parameter('--fail', fail),
                         parameter('--grant', grant), (String)"--osgi=$osgi"]
-                .findAll({it != null})
+                .findAll{ it != null }
         then:
           arguments.containsAll(expected)
         where:

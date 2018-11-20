@@ -128,6 +128,7 @@ The following modules are defined:
 * acdebugger-common
 * acdebugger-distribution
 * acdebugger-docker
+* acdebugger-maven-plugin
  
 #### acdebugger-api
 Defines a bundle that provides an interface for a permission service which is used by the backdoor bundle to temporarily grant missing permissions. This service should be registered by the VM.
@@ -148,6 +149,9 @@ Refer to [this page](docs/installing.md) for more information on installing the 
 #### acdebugger-docker
 Creates a docker image for acdebugger.
 Refer to [this page](docs/docker.md) for more information on using the docker container.
+
+#### acdebugger-maven-plugin
+Creates a maven plugin that can be used to start the AC Debugger in other maven projects.
 
 ### Future iterations
 Future implementations will:

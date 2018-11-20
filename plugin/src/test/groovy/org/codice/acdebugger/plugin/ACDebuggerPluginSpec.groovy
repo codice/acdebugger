@@ -34,7 +34,6 @@ class ACDebuggerPluginSpec extends Specification {
           plugin.execute()
         then:
           0 * plugin.buildArguments()
-          0 * plugin.buildCommand()
     }
 
     def "make sure we skip when remoteDebugging set to true"() {
@@ -44,7 +43,6 @@ class ACDebuggerPluginSpec extends Specification {
           plugin.execute()
         then:
           0 * plugin.buildArguments()
-          0 * plugin.buildCommand()
     }
 
     @Unroll
@@ -54,10 +52,10 @@ class ACDebuggerPluginSpec extends Specification {
                   admin: admin, debug: debug, service: service, fail: fail, grant: grant, osgi: osgi)
         when:
         def arguments = plugin.buildArguments()
-        def expected = ["--host", host, "--port", port, parameter("--wait", wait), "--timeout", timeout,
-                        parameter("--reconnect", reconnect), parameter("--continuous", continuous), parameter("--admin", admin),
-                        parameter("--debug", debug), parameter("--service", service), parameter("--fail", fail),
-                        parameter("--grant", grant), (String)"--osgi=$osgi"]
+        def expected = ['--host', host, '--port', port, parameter('--wait', wait), '--timeout', timeout,
+                        parameter('--reconnect', reconnect), parameter('--continuous', continuous), parameter('--admin', admin),
+                        parameter('--debug', debug), parameter('--service', service), parameter('--fail', fail),
+                        parameter('--grant', grant), (String)"--osgi=$osgi"]
                 .findAll({it != null})
         then:
           arguments.containsAll(expected)

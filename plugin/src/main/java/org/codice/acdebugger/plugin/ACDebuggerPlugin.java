@@ -22,6 +22,15 @@ import org.apache.maven.plugins.annotations.Mojo;
 import org.apache.maven.plugins.annotations.Parameter;
 import org.codice.acdebugger.Main;
 
+/**
+ * Maven plugin that starts the AC Debugger in a separate thread during a maven build. Default goal
+ * is on the 'pre-integration-test' phase but can be overridden in its configuration
+ *
+ * <p>can manually start the plugin by running: mvn acdebugger:start when added to a project
+ *
+ * <p>Important: The parameters are a direct copy of the ones in {@link
+ * org.codice.acdebugger.ACDebugger} and should be kept in sync
+ */
 @Mojo(name = "start", defaultPhase = LifecyclePhase.PRE_INTEGRATION_TEST)
 public class ACDebuggerPlugin extends AbstractMojo {
   @Parameter private boolean skip;
@@ -36,7 +45,7 @@ public class ACDebuggerPlugin extends AbstractMojo {
 
   @Parameter private boolean wait;
 
-  @Parameter(defaultValue = "1")
+  @Parameter(defaultValue = "10")
   private int timeout;
 
   @Parameter private boolean reconnect;
@@ -76,7 +85,9 @@ public class ACDebuggerPlugin extends AbstractMojo {
     Runnable acdebugger = () -> Main.main(arguments.toArray(new String[0]));
     getLog()
         .info("Starting AC Debugger with the following options: " + String.join(" ", arguments));
-    new Thread(acdebugger).start();
+    Thread thread = new Thread(acdebugger, "AC Debugger Maven Plugin");
+    thread.setDaemon(true);
+    thread.start();
   }
 
   @VisibleForTesting

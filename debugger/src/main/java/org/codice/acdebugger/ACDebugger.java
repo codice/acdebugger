@@ -25,6 +25,8 @@ import org.codice.acdebugger.impl.Debugger;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Option;
 
+// Important: The options are a copy of the ones in org.codice.acdebugger.plugin.ACDebuggerPlugin
+// and should be kept in sync
 @Command(
   description = "Purpose-built debugger for determining missing OSGi bundle security permissions.",
   name = "acdebugger",

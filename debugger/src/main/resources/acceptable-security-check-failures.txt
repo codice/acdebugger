@@ -16,3 +16,9 @@ org\.apache\.pdfbox\.pdmodel\.font\.FileSystemFontProvider.*
 # continue with a valid default for Windows
 java\.io\.FilePermission ".*somaxconn", "read"
 io\.netty\.util\.NetUtil\$.*:267
+
+# At startup time, Karaf tries to create a system terminal and will fall back to a dumb one of it c
+# cannot.
+java\.io\.FilePermission "<<ALL FILES>>", "execute"
+org\.jline\.utils\.ExecHelper:35
+org\.jline\.terminal\.TerminalBuilder:376

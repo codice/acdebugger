@@ -283,6 +283,8 @@
                                 ${highest-basedir}/dependency-check-maven-config.xml
                             </suppressionFile>
                         </suppressionFiles>
+                        <!-- This prevents a build failure on jdk tools jar -->
+                        <skipSystemScope>true</skipSystemScope>
                     </configuration>
                     <executions>
                         <execution>

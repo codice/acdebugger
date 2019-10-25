@@ -70,7 +70,7 @@
 
         <!-- Maven Plugin Version Properties -->
         <directory-maven-plugin.version>0.3.1</directory-maven-plugin.version>
-        <dependency-check-maven.version>3.1.1</dependency-check-maven.version>
+        <dependency-check-maven.version>5.2.2</dependency-check-maven.version>
         <maven-jacoco-plugin.version>0.8.2</maven-jacoco-plugin.version>
         <fabric8.docker.plugin.version>0.27.1</fabric8.docker.plugin.version>
         <maven-plugin-plugin.version>3.6.0</maven-plugin-plugin.version>
@@ -256,10 +256,8 @@
                     <version>${dependency-check-maven.version}</version>
                     <configuration>
                         <!-- The following properties enable using a mirror for nist NVD data -->
-                        <cveUrl12Modified>${owasp.cveUrl12Modified}</cveUrl12Modified>
-                        <cveUrl20Modified>${owasp.cveUrl20Modified}</cveUrl20Modified>
-                        <cveUrl12Base>${owasp.cveUrl12Base}</cveUrl12Base>
-                        <cveUrl20Base>${owasp.cveUrl20Base}</cveUrl20Base>
+                        <cveUrlModified>${owasp.cveUrlModified}</cveUrlModified>
+                        <cveUrlBase>${owasp.cveUrlBase}</cveUrlBase>
                         <!-- End NVD mirror configuration -->
                         <failBuildOnCVSS>2</failBuildOnCVSS>
                         <skipTestScope>true</skipTestScope>
@@ -285,6 +283,8 @@
                                 ${highest-basedir}/dependency-check-maven-config.xml
                             </suppressionFile>
                         </suppressionFiles>
+                        <!-- This prevents a build failure on jdk tools jar -->
+                        <skipSystemScope>true</skipSystemScope>
                     </configuration>
                     <executions>
                         <execution>

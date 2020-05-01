@@ -37,9 +37,9 @@
 
     <properties>
         <!--  default URL properties -->
-        <codice.scm.connection.url />
-        <snapshots.repository.url />
-        <reports.repository.url />
+        <codice.scm.connection.url/>
+        <snapshots.repository.url/>
+        <reports.repository.url/>
 
         <maven.compiler.source>1.8</maven.compiler.source>
         <maven.compiler.target>1.8</maven.compiler.target>
@@ -52,7 +52,7 @@
         <osgi.version>5.0.0</osgi.version>
         <eclipse-osgi.version>3.11.3</eclipse-osgi.version>
         <jsr305.version>3.0.2_1</jsr305.version>
-        <picocli.version>3.5.2</picocli.version>
+        <picocli.version>3.9.6</picocli.version>
         <maven.version>3.3.9</maven.version>
         <maven-plugin-annotations.version>3.5.1</maven-plugin-annotations.version>
 

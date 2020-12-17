@@ -173,9 +173,9 @@ pipeline {
                             script {
                                 // If this build is not a pull request, run full owasp scan. Otherwise run incremental scan
                                 if (env.CHANGE_ID == null) {
-                                    sh 'mvn install -q -B -Powasp -DskipTests=true -DskipStatic=true $DISABLE_DOWNLOAD_PROGRESS_OPTS'
+                                    sh 'mvn org.commonjava.maven.plugins:directory-maven-plugin:highest-basedir@directories dependency-check:aggregate -Powasp -DskipTests=true -DskipStatic=true $DISABLE_DOWNLOAD_PROGRESS_OPTS'
                                 } else {
-                                    sh 'mvn install -q -B -Powasp -DskipTests=true -DskipStatic=true -Dgib.enabled=true -Dgib.referenceBranch=/refs/remotes/origin/$CHANGE_TARGET $DISABLE_DOWNLOAD_PROGRESS_OPTS'
+                                    sh 'mvn org.commonjava.maven.plugins:directory-maven-plugin:highest-basedir@directories dependency-check:aggregate -Powasp -DskipTests=true -DskipStatic=true -Dgib.enabled=true -Dgib.referenceBranch=/refs/remotes/origin/$CHANGE_TARGET $DISABLE_DOWNLOAD_PROGRESS_OPTS'
                                 }
                             }
                         }

@@ -70,10 +70,16 @@
 
         <!-- Maven Plugin Version Properties -->
         <directory-maven-plugin.version>0.3.1</directory-maven-plugin.version>
-        <dependency-check-maven.version>5.2.2</dependency-check-maven.version>
         <maven-jacoco-plugin.version>0.8.2</maven-jacoco-plugin.version>
         <fabric8.docker.plugin.version>0.27.1</fabric8.docker.plugin.version>
         <maven-plugin-plugin.version>3.6.0</maven-plugin-plugin.version>
+
+        <!-- dependency-check -->
+        <mariadb.version>2.4.1</mariadb.version>
+
+        <!-- Must MANUALLY update this if the ddf/support project's version changes -->
+        <ddf.support.version>2.3.16</ddf.support.version>
+
     </properties>
 
     <scm>
@@ -82,6 +88,12 @@
         <developerConnection>scm:git:https://github.com/codice/acdebugger.git</developerConnection>
         <tag>acdebugger-1.7</tag>
     </scm>
+
+    <parent>
+        <groupId>ddf</groupId>
+        <artifactId>ddf-parent</artifactId>
+        <version>1.0.11</version>
+    </parent>
 
     <repositories>
         <repository>
@@ -254,17 +266,29 @@
                     <groupId>org.owasp</groupId>
                     <artifactId>dependency-check-maven</artifactId>
                     <version>${dependency-check-maven.version}</version>
+                    <dependencies>
+                        <dependency>
+                            <groupId>ddf.support</groupId>
+                            <artifactId>support-owasp</artifactId>
+                            <version>${ddf.support.version}</version>
+                        </dependency>
+                        <dependency>
+                            <groupId>org.mariadb.jdbc</groupId>
+                            <artifactId>mariadb-java-client</artifactId>
+                            <version>${mariadb.version}</version>
+                        </dependency>
+                    </dependencies>
                     <configuration>
-                        <!-- The following properties enable using a mirror for nist NVD data -->
-                        <cveUrlModified>${owasp.cveUrlModified}</cveUrlModified>
-                        <cveUrlBase>${owasp.cveUrlBase}</cveUrlBase>
-                        <!-- End NVD mirror configuration -->
-                        <failBuildOnCVSS>2</failBuildOnCVSS>
+                        <!-- The following properties enable using a centralized nvd server -->
+                        <autoUpdate>${owasp.autoUpdate}</autoUpdate>
+                        <databaseDriverName>${owasp.database.driverName}</databaseDriverName>
+                        <connectionString>${owasp.database.url}</connectionString>
+                        <serverId>${owasp.serverId}</serverId>
+                        <!-- End Centralized NVD Server Configuration -->
+                        <failOnError>false</failOnError>
                         <skipTestScope>true</skipTestScope>
                         <!--Disable by plugin maintainer recommendation on https://github.com/jeremylong/DependencyCheck/issues/978#issuecomment-349620687-->
                         <centralAnalyzerEnabled>false</centralAnalyzerEnabled>
-                        <!--Disable because we have a separate NSP analysis step and this plugin has no way to suppress NSP issues as of 3.0.2-->
-                        <nspAnalyzerEnabled>false</nspAnalyzerEnabled>
                         <!--Disable .NET analyzers-->
                         <nuspecAnalyzerEnabled>false</nuspecAnalyzerEnabled>
                         <assemblyAnalyzerEnabled>false</assemblyAnalyzerEnabled>
@@ -285,15 +309,11 @@
                         </suppressionFiles>
                         <!-- This prevents a build failure on jdk tools jar -->
                         <skipSystemScope>true</skipSystemScope>
+                        <formats>
+                            <format>HTML</format>
+                            <format>JUNIT</format>
+                        </formats>
                     </configuration>
-                    <executions>
-                        <execution>
-                            <phase>package</phase>
-                            <goals>
-                                <goal>check</goal>
-                            </goals>
-                        </execution>
-                    </executions>
                 </plugin>
                 <plugin>
                     <groupId>org.apache.maven.plugins</groupId>

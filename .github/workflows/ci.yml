@@ -142,5 +142,6 @@ jobs:
           mvn deploy $MAVEN_CLI_OPTS \
             -DskipTests=true \
             -DretryFailedDeploymentCount=10 \
+            -pl '!docker' \
             -DaltReleaseDeploymentRepository=releases::https://maven.pkg.github.com/codice/acdebugger \
             -DaltSnapshotDeploymentRepository=snapshots::https://maven.pkg.github.com/codice/acdebugger

@@ -55,7 +55,7 @@ jobs:
             }]
 
       - name: Build
-        run: mvn clean install $MAVEN_CLI_OPTS -DskipTests
+        run: mvn clean install $MAVEN_CLI_OPTS -DskipTests -pl '!docker'
 
   full-build:
     if: github.event_name != 'pull_request'
@@ -89,7 +89,7 @@ jobs:
             }]
 
       - name: Build
-        run: mvn clean install $MAVEN_CLI_OPTS -DskipTests
+        run: mvn clean install $MAVEN_CLI_OPTS -DskipTests -pl '!docker'
 
   deploy:
     needs: full-build

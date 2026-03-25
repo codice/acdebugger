@@ -1,0 +1,9 @@
+name: Deploy
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+  packages: write
+jobs:
+  deploy:
+    uses: codice/release-pipelines/.github/workflows/maven-manual-deploy.yml@main

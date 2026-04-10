@@ -5,7 +5,7 @@ permissions:
   contents: read
 jobs:
   deploy:
-    uses: codice/release-pipelines/.github/workflows/maven-manual-deploy.yml@nexus-deploy
+    uses: codice/release-pipelines/.github/workflows/maven-manual-deploy.yml@main
     secrets:
       nexus_username: ${{ secrets.NEXUS_USERNAME }}
       nexus_password: ${{ secrets.NEXUS_PASSWORD }}

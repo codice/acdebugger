@@ -3,7 +3,9 @@ on:
   workflow_dispatch:
 permissions:
   contents: read
-  packages: write
 jobs:
   deploy:
-    uses: codice/release-pipelines/.github/workflows/maven-manual-deploy.yml@main
+    uses: codice/release-pipelines/.github/workflows/maven-manual-deploy.yml@nexus-deploy
+    secrets:
+      nexus_username: ${{ secrets.NEXUS_USERNAME }}
+      nexus_password: ${{ secrets.NEXUS_PASSWORD }}

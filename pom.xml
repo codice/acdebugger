@@ -17,7 +17,7 @@
 
     <groupId>org.codice.acdebugger</groupId>
     <artifactId>acdebugger</artifactId>
-    <version>1.8</version>
+    <version>1.9-SNAPSHOT</version>
     <packaging>pom</packaging>
     <name>AC Debugger</name>
     <description>Access Control Debugger Parent</description>
@@ -80,7 +80,7 @@
         <url>https://github.com/codice/acdebugger</url>
         <connection>scm:git:https://github.com/codice/acdebugger.git</connection>
         <developerConnection>scm:git:https://github.com/codice/acdebugger.git</developerConnection>
-        <tag>acdebugger-1.8</tag>
+        <tag>acdebugger-1.7</tag>
     </scm>
 
     <repositories>
